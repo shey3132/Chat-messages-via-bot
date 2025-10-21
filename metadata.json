@@ -1,0 +1,5 @@
+{
+  "name": "שולח הודעות לצאט",
+  "description": "An application to build and send beautifully formatted card messages or simple text messages to a Google Chat webhook, with live preview and history features.",
+  "requestFramePermissions": []
+}
