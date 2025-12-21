@@ -112,9 +112,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
               <p className="text-[10px] text-slate-300 font-bold uppercase tracking-[0.2em]">מאובטח ע"י גוגל</p>
               <span className="h-px w-8 bg-slate-100"></span>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium leading-relaxed px-6">
-              בלחיצה על הכפתור, אנו ניצור עבורך מפתח סנכרון מוצפן המבוסס על זהות הגוגל שלך.
-            </p>
         </div>
       </div>
     </div>
