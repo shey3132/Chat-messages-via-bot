@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import GoogleChatSender from './views/GoogleChatSender';
 import OtherApp from './views/OtherApp';
-import { HistoryItem, ChatMessagePayload } from './types';
+import { HistoryItem, ChatMessagePayload, SavedWebhook, UserDataContainer } from './types';
 import TabButton from './components/TabButton';
 import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
@@ -14,42 +14,12 @@ const SYNC_PROVIDER_URL = 'https://kvdb.io/6E3tYfN1Yx6878YpXy6L5z/';
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [savedWebhooks, setSavedWebhooks] = useState<SavedWebhook[]>([]);
   const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
 
-  const mergeHistory = useCallback((local: HistoryItem[], remote: HistoryItem[]) => {
-    const combined = [...local, ...remote];
-    const unique = Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 50);
-    return unique;
-  }, []);
-
-  const pullFromCloud = useCallback(async (key: string) => {
-    if (!key) return;
-    setSyncStatus('syncing');
-    try {
-      const response = await fetch(`${SYNC_PROVIDER_URL}${key}`);
-      if (response.ok) {
-        const remoteData = await response.json();
-        if (Array.isArray(remoteData)) {
-          setHistory(prev => {
-            const merged = mergeHistory(prev, remoteData);
-            localStorage.setItem('chatHistory', JSON.stringify(merged));
-            return merged;
-          });
-          setSyncStatus('success');
-        }
-      } else {
-        setSyncStatus('idle');
-      }
-    } catch (err) {
-      setSyncStatus('error');
-    }
-  }, [mergeHistory]);
-
-  const pushToCloud = useCallback(async (key: string, data: HistoryItem[]) => {
+  const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
     if (!key) return;
     try {
       await fetch(`${SYNC_PROVIDER_URL}${key}`, {
@@ -59,19 +29,64 @@ export default function App() {
     } catch (err) {}
   }, []);
 
+  const pullFromCloud = useCallback(async (key: string) => {
+    if (!key) return;
+    setSyncStatus('syncing');
+    try {
+      const response = await fetch(`${SYNC_PROVIDER_URL}${key}`);
+      if (response.ok) {
+        const remoteData = await response.json();
+        
+        // Handle both old array format and new object format
+        let cloudHistory: HistoryItem[] = [];
+        let cloudWebhooks: SavedWebhook[] = [];
+
+        if (Array.isArray(remoteData)) {
+          cloudHistory = remoteData;
+        } else if (remoteData && typeof remoteData === 'object') {
+          cloudHistory = remoteData.history || [];
+          cloudWebhooks = remoteData.webhooks || [];
+        }
+
+        setHistory(prev => {
+          const combined = [...prev, ...cloudHistory];
+          const unique = Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 50);
+          localStorage.setItem('chatHistory', JSON.stringify(unique));
+          return unique;
+        });
+
+        setSavedWebhooks(prev => {
+            const combined = [...prev, ...cloudWebhooks];
+            const unique = Array.from(new Map(combined.map(item => [item.url, item])).values());
+            localStorage.setItem('savedWebhooks', JSON.stringify(unique));
+            return unique;
+        });
+
+        setSyncStatus('success');
+      } else {
+        setSyncStatus('idle');
+      }
+    } catch (err) {
+      setSyncStatus('error');
+    }
+  }, []);
+
   useEffect(() => {
     const savedUser = localStorage.getItem('chathub_user');
+    const storedHistory = localStorage.getItem('chatHistory');
+    const storedWebhooks = localStorage.getItem('savedWebhooks');
+
+    if (storedHistory) setHistory(JSON.parse(storedHistory));
+    if (storedWebhooks) setSavedWebhooks(JSON.parse(storedWebhooks));
+
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
       setUser(parsedUser);
       pullFromCloud(parsedUser.syncKey);
     } else {
       setIsAuthOpen(true);
-    }
-
-    const storedHistory = localStorage.getItem('chatHistory');
-    if (storedHistory) {
-      setHistory(JSON.parse(storedHistory));
     }
   }, [pullFromCloud]);
 
@@ -82,12 +97,35 @@ export default function App() {
       localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
       
       if (user?.syncKey) {
-        pushToCloud(user.syncKey, updatedHistory);
+        pushToCloud(user.syncKey, { history: updatedHistory, webhooks: savedWebhooks });
       }
       
       return updatedHistory;
     });
-  }, [user, pushToCloud]);
+  }, [user, savedWebhooks, pushToCloud]);
+
+  const addWebhook = useCallback((webhook: SavedWebhook) => {
+    setSavedWebhooks(prev => {
+        const filtered = prev.filter(w => w.url !== webhook.url);
+        const updated = [webhook, ...filtered];
+        localStorage.setItem('savedWebhooks', JSON.stringify(updated));
+        if (user?.syncKey) {
+            pushToCloud(user.syncKey, { history, webhooks: updated });
+        }
+        return updated;
+    });
+  }, [user, history, pushToCloud]);
+
+  const deleteWebhook = useCallback((id: string) => {
+    setSavedWebhooks(prev => {
+        const updated = prev.filter(w => w.id !== id);
+        localStorage.setItem('savedWebhooks', JSON.stringify(updated));
+        if (user?.syncKey) {
+            pushToCloud(user.syncKey, { history, webhooks: updated });
+        }
+        return updated;
+    });
+  }, [user, history, pushToCloud]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const userData = { username, syncKey, avatar };
@@ -101,8 +139,10 @@ export default function App() {
     if(confirm('בטוח שברצונך להתנתק?')) {
       localStorage.removeItem('chathub_user');
       localStorage.removeItem('chatHistory');
+      localStorage.removeItem('savedWebhooks');
       setUser(null);
       setHistory([]);
+      setSavedWebhooks([]);
       setIsAuthOpen(true);
     }
   };
@@ -158,8 +198,22 @@ export default function App() {
       
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto w-full">
         <div className="lg:col-span-8">
-            {activeApp === 'chatSender' && <GoogleChatSender saveHistory={saveHistory} />}
-            {activeApp === 'otherApp' && <OtherApp saveHistory={saveHistory} />}
+            {activeApp === 'chatSender' && (
+                <GoogleChatSender 
+                    saveHistory={saveHistory} 
+                    savedWebhooks={savedWebhooks}
+                    onAddWebhook={addWebhook}
+                    onDeleteWebhook={deleteWebhook}
+                />
+            )}
+            {activeApp === 'otherApp' && (
+                <OtherApp 
+                    saveHistory={saveHistory} 
+                    savedWebhooks={savedWebhooks}
+                    onAddWebhook={addWebhook}
+                    onDeleteWebhook={deleteWebhook}
+                />
+            )}
         </div>
         <div className="lg:col-span-4">
           <HistorySidebar 

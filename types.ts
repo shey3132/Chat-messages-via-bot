@@ -1,3 +1,4 @@
+
 export interface OpenLink {
   url: string;
 }
@@ -52,7 +53,7 @@ export interface Card {
 
 export interface DecoratedText {
   text: string;
-  onClick?: any; // It's a function call, not a link.
+  onClick?: any;
 }
 
 export interface PollWidget {
@@ -73,7 +74,6 @@ export interface CardV2 {
   card: PollCard;
 }
 
-
 // --- Main Payload Type ---
 
 export interface ChatMessagePayload {
@@ -85,4 +85,17 @@ export interface ChatMessagePayload {
 export interface HistoryItem {
   timestamp: number;
   payload: ChatMessagePayload;
+}
+
+// --- New: Saved Webhook Type ---
+export interface SavedWebhook {
+  id: string;
+  name: string;
+  url: string;
+}
+
+// --- Sync Container ---
+export interface UserDataContainer {
+  history: HistoryItem[];
+  webhooks: SavedWebhook[];
 }
