@@ -12,9 +12,9 @@ type ActiveApp = 'chatSender' | 'otherApp';
 type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const STORAGE_PREFIX = 'ch_v22_'; // עדכון גרסת אחסון
+const STORAGE_PREFIX = 'ch_v23_'; 
 
-// מרכזיות מעודכנות ויציבות יותר
+// מרכזיות משנה למניעת עומס
 const HUB_SHARDS: Record<string, string> = {
   '0': 'b738495f36e47f763a86', '1': 'c29384f5a6b7c8d9e0f1', '2': 'a1b2c3d4e5f6a7b8c9d0',
   '3': 'f1e2d3c4b5a6f7e8d9c0', '4': '5a6b7c8d9e0f1a2b3c4d', '5': 'e5f6a7b8c9d0e1f2a3b4',
@@ -35,13 +35,16 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   
   const lastCloudDataHash = useRef<string>("");
-  const retryCount = useRef<number>(0);
+  const brokenShards = useRef<Set<string>>(new Set());
 
   const getShardId = (syncKey: string) => {
-    // מנגנון רוטציה: אם נכשלנו יותר מ-2 פעמים, ננסה שארד חלופי (האות הבאה ב-key)
-    const index = retryCount.current > 2 ? 1 : 0;
-    const char = syncKey.charAt(index % syncKey.length).toLowerCase();
-    return HUB_SHARDS[char] || HUB_SHARDS['a'];
+    // מנסה למצוא שארד שלא סומן כפגום
+    for (let i = 0; i < syncKey.length; i++) {
+        const char = syncKey.charAt(i).toLowerCase();
+        const shardId = HUB_SHARDS[char];
+        if (shardId && !brokenShards.current.has(shardId)) return shardId;
+    }
+    return HUB_SHARDS['a']; // ברירת מחדל אחרונה
   };
 
   const isValidId = (id: string | null) => {
@@ -53,7 +56,11 @@ export default function App() {
     if (!isValidId(id)) return;
     setSyncStatus('syncing');
     try {
-      const response = await fetch(`${DATA_PROVIDER}${id}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${DATA_PROVIDER}${id}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (response.ok) {
         const data: UserDataContainer = await response.json();
         if (data && (Array.isArray(data.history) || Array.isArray(data.webhooks))) {
@@ -66,7 +73,6 @@ export default function App() {
           setSavedWebhooks(data.webhooks || []);
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
-          retryCount.current = 0;
           return true;
         }
       }
@@ -80,6 +86,12 @@ export default function App() {
     const shardId = getShardId(syncKey);
     try {
       const response = await fetch(`${DATA_PROVIDER}${shardId}`);
+      if (response.status === 500) {
+        brokenShards.current.add(shardId);
+        // נסיון חוזר עם שארד אחר
+        return discoverUserCloud(syncKey);
+      }
+      
       if (response.ok) {
         const hub: Record<string, string> = await response.json();
         const foundId = hub[syncKey];
@@ -90,13 +102,8 @@ export default function App() {
           return foundId;
         }
       }
-    } catch (e) {
-      if (retryCount.current < 3) {
-        retryCount.current++;
-        setTimeout(() => discoverUserCloud(syncKey), 2000);
-      }
-    }
-    setSyncStatus('no_key');
+    } catch (e) {}
+    setSyncStatus('local');
     return null;
   }, [fetchCloudData]);
 
@@ -127,8 +134,8 @@ export default function App() {
     setSyncStatus('syncing');
     try {
       const isExisting = isValidId(cloudId);
-      // npoint לפעמים דורש / בסוף ביצירה חדשה
-      const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : `${DATA_PROVIDER.slice(0, -1)}`;
+      // תיקון Endpoint: שימוש בנתיב היצירה הרשמי אם מדובר בקובץ חדש
+      const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : `${DATA_PROVIDER}bins`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -141,16 +148,15 @@ export default function App() {
 
       if (response.ok) {
         const resData = await response.json();
-        if (!isExisting && resData.id) {
-          const newId = resData.id;
+        const newId = isExisting ? cloudId : resData.id;
+        if (newId && isValidId(newId)) {
           setCloudId(newId);
           localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
-          await registerInHub(user.syncKey, newId);
+          if (!isExisting) await registerInHub(user.syncKey, newId);
+          lastCloudDataHash.current = currentHash;
+          setSyncStatus('success');
         }
-        lastCloudDataHash.current = currentHash;
-        setSyncStatus('success');
       } else {
-        // אם קיבלנו 404 או 500, נסמן מצב מקומי ולא נפריע למשתמש
         setSyncStatus('local');
       }
     } catch (e) {
@@ -187,7 +193,7 @@ export default function App() {
     if (!user || !isReady) return;
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
-    }, 5000); 
+    }, 6000); 
     
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
@@ -215,7 +221,7 @@ export default function App() {
     setCloudId(null);
     setHistory([]);
     setSavedWebhooks([]);
-    localStorage.removeItem(`${STORAGE_PREFIX}user`);
+    localStorage.clear(); // ניקוי יסודי למקרה של מזהים פגומים
     setIsAuthOpen(true);
   };
 
@@ -237,7 +243,7 @@ export default function App() {
                 <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-400'}`} />
                 {syncStatus === 'discovering' ? 'מחבר לענן...' :
                  syncStatus === 'syncing' ? 'מעדכן...' : 
-                 syncStatus === 'success' ? 'ענן פעיל' : 'עובד מקומית'}
+                 syncStatus === 'success' ? 'גיבוי ענן פעיל' : 'עבודה מקומית'}
              </div>
           </div>
         </div>
