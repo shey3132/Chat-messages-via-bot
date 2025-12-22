@@ -9,10 +9,10 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering' | 'cooldown';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering' | 'offline';
 
-const DATA_PROVIDER = 'https://api.npoint.io/';
-const STORAGE_PREFIX = 'ch_v24_'; 
+const DATA_PROVIDER = 'https://api.npoint.io'; // הסרת סלאש סופי למניעת כפילויות
+const STORAGE_PREFIX = 'ch_v25_'; 
 
 const HUB_SHARDS: Record<string, string> = {
   '0': 'b738495f36e47f763a86', '1': 'c29384f5a6b7c8d9e0f1', '2': 'a1b2c3d4e5f6a7b8c9d0',
@@ -34,17 +34,19 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   
   const lastCloudDataHash = useRef<string>("");
-  const brokenShards = useRef<Set<string>>(new Set());
-  const errorCount = useRef<number>(0);
-  const cooldownUntil = useRef<number>(0);
+  const isCloudOffline = useRef<boolean>(false);
+  const offlineTimer = useRef<number>(0);
 
   const getShardId = (syncKey: string) => {
-    for (let i = 0; i < syncKey.length; i++) {
-        const char = syncKey.charAt(i).toLowerCase();
-        const shardId = HUB_SHARDS[char];
-        if (shardId && !brokenShards.current.has(shardId)) return shardId;
-    }
-    return HUB_SHARDS['a'];
+    const char = syncKey.charAt(0).toLowerCase();
+    return HUB_SHARDS[char] || HUB_SHARDS['a'];
+  };
+
+  const setOfflineMode = (duration: number = 300000) => { // ברירת מחדל 5 דקות
+    isCloudOffline.current = true;
+    offlineTimer.current = Date.now() + duration;
+    setSyncStatus('offline');
+    console.warn(`Cloud sync entered offline mode for ${duration/1000}s due to server errors.`);
   };
 
   const isValidId = (id: string | null) => {
@@ -53,14 +55,10 @@ export default function App() {
   };
 
   const fetchCloudData = useCallback(async (id: string) => {
-    if (!isValidId(id)) return;
+    if (!isValidId(id) || isCloudOffline.current) return;
     setSyncStatus('syncing');
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const response = await fetch(`${DATA_PROVIDER}${id}`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
+      const response = await fetch(`${DATA_PROVIDER}/${id}`);
       if (response.ok) {
         const data: UserDataContainer = await response.json();
         if (data && (Array.isArray(data.history) || Array.isArray(data.webhooks))) {
@@ -73,9 +71,10 @@ export default function App() {
           setSavedWebhooks(data.webhooks || []);
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
-          errorCount.current = 0;
           return true;
         }
+      } else if (response.status >= 500) {
+        setOfflineMode();
       }
     } catch (e) {}
     setSyncStatus('local');
@@ -83,18 +82,11 @@ export default function App() {
   }, []);
 
   const discoverUserCloud = useCallback(async (syncKey: string) => {
-    if (Date.now() < cooldownUntil.current) return null;
+    if (isCloudOffline.current) return null;
     setSyncStatus('discovering');
     const shardId = getShardId(syncKey);
     try {
-      const response = await fetch(`${DATA_PROVIDER}${shardId}`);
-      if (response.status >= 500) {
-        brokenShards.current.add(shardId);
-        errorCount.current++;
-        if (errorCount.current > 3) cooldownUntil.current = Date.now() + 60000;
-        return null;
-      }
-      
+      const response = await fetch(`${DATA_PROVIDER}/${shardId}`);
       if (response.ok) {
         const hub: Record<string, string> = await response.json();
         const foundId = hub[syncKey];
@@ -104,6 +96,8 @@ export default function App() {
           await fetchCloudData(foundId);
           return foundId;
         }
+      } else if (response.status >= 500) {
+        setOfflineMode();
       }
     } catch (e) {}
     setSyncStatus('local');
@@ -111,16 +105,16 @@ export default function App() {
   }, [fetchCloudData]);
 
   const registerInHub = async (syncKey: string, newCloudId: string) => {
+    if (isCloudOffline.current) return;
     const shardId = getShardId(syncKey);
     try {
-      const hubRes = await fetch(`${DATA_PROVIDER}${shardId}`);
+      const hubRes = await fetch(`${DATA_PROVIDER}/${shardId}`);
       let hub: Record<string, string> = {};
       if (hubRes.ok) {
         try { hub = await hubRes.json(); } catch(e) {}
       }
-      if (hub[syncKey] === newCloudId) return;
       hub[syncKey] = newCloudId;
-      await fetch(`${DATA_PROVIDER}${shardId}`, {
+      await fetch(`${DATA_PROVIDER}/${shardId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(hub)
@@ -130,9 +124,15 @@ export default function App() {
 
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
     if (!isReady || !user) return;
-    if (Date.now() < cooldownUntil.current) {
-        setSyncStatus('cooldown');
-        return;
+    
+    // בדיקת Circuit Breaker
+    if (isCloudOffline.current) {
+        if (Date.now() > offlineTimer.current) {
+            isCloudOffline.current = false;
+        } else {
+            setSyncStatus('offline');
+            return;
+        }
     }
 
     const currentHash = JSON.stringify(data);
@@ -141,13 +141,13 @@ export default function App() {
         return;
     }
     
-    // אם אין דאטה בכלל, אל תנסה ליצור "בין" חדש
     if (data.history.length === 0 && data.webhooks.length === 0) return;
 
     setSyncStatus('syncing');
     try {
       const isExisting = isValidId(cloudId);
-      const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : `${DATA_PROVIDER}bins`;
+      // תיקון קריטי: npoint משתמש ב-POST לכתובת הבסיס ליצירה חדשה, לא ל-/bins
+      const url = isExisting ? `${DATA_PROVIDER}/${cloudId}` : DATA_PROVIDER;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -164,16 +164,10 @@ export default function App() {
           if (!isExisting) await registerInHub(user.syncKey, newId);
           lastCloudDataHash.current = currentHash;
           setSyncStatus('success');
-          errorCount.current = 0;
         }
       } else {
-        errorCount.current++;
-        if (errorCount.current > 3) {
-            cooldownUntil.current = Date.now() + 60000;
-            setSyncStatus('cooldown');
-        } else {
-            setSyncStatus('local');
-        }
+        // אם קיבלנו 404 או 500, נכנסים למצב אופליין כדי לא להציף את הלוג
+        setOfflineMode();
       }
     } catch (e) {
       setSyncStatus('local');
@@ -207,7 +201,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user || !isReady) return;
-    const interval = syncStatus === 'cooldown' ? 60000 : 8000;
+    const interval = isCloudOffline.current ? 30000 : 10000;
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
     }, interval); 
@@ -215,25 +209,27 @@ export default function App() {
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
     return () => clearTimeout(timer);
-  }, [history, savedWebhooks, user, saveToCloud, isReady, syncStatus]);
+  }, [history, savedWebhooks, user, saveToCloud, isReady]);
 
-  const handleLogin = async (username: string, syncKey: string, avatar?: string) => {
+  // Fix: Added missing handleLogin function.
+  const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
-    setIsAuthOpen(false);
     
     const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
     if (isValidId(savedId)) {
       setCloudId(savedId!);
       fetchCloudData(savedId!);
     } else {
-      await discoverUserCloud(syncKey);
+      discoverUserCloud(syncKey);
     }
+    
+    setIsAuthOpen(false);
   };
 
   const handleLogout = () => {
-    if (!confirm('להתנתק? הנתונים יישארו בענן אך יימחקו מהמחשב הזה.')) return;
+    if (!confirm('להתנתק? הנתונים יימחקו מהמחשב הזה בלבד.')) return;
     localStorage.clear();
     window.location.reload();
   };
@@ -251,14 +247,14 @@ export default function App() {
           <div className="px-6 flex items-center gap-4">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
-                syncStatus === 'cooldown' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                'bg-slate-100 text-slate-500 border border-slate-200'
+                syncStatus === 'offline' ? 'bg-slate-100 text-slate-400 border border-slate-200' :
+                'bg-amber-50 text-amber-600 border border-amber-100'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : syncStatus === 'cooldown' ? 'bg-amber-400' : 'bg-slate-400'}`} />
-                {syncStatus === 'discovering' ? 'מחפש גיבוי...' :
-                 syncStatus === 'syncing' ? 'מגבה...' : 
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-300'}`} />
+                {syncStatus === 'discovering' ? 'מחבר ענן...' :
+                 syncStatus === 'syncing' ? 'מעדכן ענן...' : 
                  syncStatus === 'success' ? 'גיבוי ענן פעיל' : 
-                 syncStatus === 'cooldown' ? 'שמור מקומית (ענן במנוחה)' : 'עבודה מקומית'}
+                 syncStatus === 'offline' ? 'מצב מקומי (שרת עמוס)' : 'עבודה מקומית'}
              </div>
           </div>
         </div>
