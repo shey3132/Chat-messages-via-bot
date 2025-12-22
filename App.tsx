@@ -24,14 +24,22 @@ export default function App() {
   const [isInitialPullDone, setIsInitialPullDone] = useState(false);
   
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isFirstLoad = useRef(true);
 
-  // 1. פונקציית משיכה מהענן
+  // 1. פונקציית משיכה מהענן - משופרת
   const pullFromCloud = useCallback(async (key: string) => {
     if (!key) return;
     setSyncStatus('syncing');
     try {
       const response = await fetch(`${SYNC_PROVIDER_URL}${key}`);
+      
+      if (response.status === 404) {
+        // משתמש חדש לגמרי - אין מידע בענן, אפשר להתחיל לסנכרן
+        console.log("New user detected, cloud is empty.");
+        setIsInitialPullDone(true);
+        setSyncStatus('idle');
+        return;
+      }
+
       if (response.ok) {
         const remoteData = await response.json();
         let cloudHistory: HistoryItem[] = [];
@@ -44,22 +52,24 @@ export default function App() {
           cloudWebhooks = remoteData.webhooks || [];
         }
 
-        // אם יש מידע בענן - נטען אותו. אם אין, נשאיר מה שיש (או ריק)
+        // טעינת הנתונים מהענן לסטייט
         setHistory(cloudHistory.slice(0, 50));
         setSavedWebhooks(cloudWebhooks);
+        
         setSyncStatus('success');
+        setIsInitialPullDone(true); // רק עכשיו מותר לסנכרן לענן
       } else {
-        setSyncStatus('idle');
+        // שגיאת שרת אחרת - לא מאשרים סנכרון כדי לא לדרוס מידע קיים בענן
+        setSyncStatus('error');
+        console.error("Cloud pull failed with status:", response.status);
       }
     } catch (e) {
       console.error("Sync Error:", e);
       setSyncStatus('error');
-    } finally {
-      setIsInitialPullDone(true); // עכשיו מותר לסנכרן לענן
     }
   }, []);
 
-  // 2. טעינה ראשונית מ-LocalStorage
+  // 2. טעינה ראשונית מ-LocalStorage וסנכרון ענן
   useEffect(() => {
     const savedUser = localStorage.getItem('chathub_user');
     const storedHistory = localStorage.getItem('chatHistory');
@@ -74,13 +84,13 @@ export default function App() {
         pullFromCloud(parsedUser.syncKey);
     } else {
         setIsAuthOpen(true);
-        setIsInitialPullDone(true); // אם אין משתמש, אין מה למשוך
+        setIsInitialPullDone(true); // אם אין משתמש, אנחנו ב"דף חלק"
     }
   }, [pullFromCloud]);
 
   // 3. פונקציית דחיפה לענן
   const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
-    if (!key) return;
+    if (!key || !isInitialPullDone) return;
     setSyncStatus('syncing');
     try {
       const response = await fetch(`${SYNC_PROVIDER_URL}${key}`, {
@@ -93,30 +103,26 @@ export default function App() {
     } catch (e) {
       setSyncStatus('error');
     }
-  }, []);
+  }, [isInitialPullDone]);
 
-  // 4. סנכרון אוטומטי בשינויים
+  // 4. סנכרון אוטומטי בשינויים - עם הגנה מוגברת
   useEffect(() => {
-    // מניעת הרצה בטעינה ראשונה או לפני משיכה מהענן
-    if (isFirstLoad.current || !isInitialPullDone) {
-      isFirstLoad.current = false;
-      return;
-    }
+    // מניעת הרצה לפני שסימנו שהמשיכה הראשונית הסתיימה
+    if (!user || !isInitialPullDone) return;
 
-    if (user?.syncKey) {
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-      syncTimeoutRef.current = setTimeout(() => {
-        pushToCloud(user.syncKey, { history, webhooks: savedWebhooks });
-      }, 1000);
-    }
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    
+    syncTimeoutRef.current = setTimeout(() => {
+      pushToCloud(user.syncKey, { history, webhooks: savedWebhooks });
+    }, 2000); // השהייה של 2 שניות למניעת עומס
 
     localStorage.setItem('chatHistory', JSON.stringify(history));
     localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
-  }, [history, savedWebhooks, user?.syncKey, pushToCloud, isInitialPullDone]);
+  }, [history, savedWebhooks, user, pushToCloud, isInitialPullDone]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
-    setIsInitialPullDone(false); // ננעל סנכרון יוצא עד שנמשוך את המידע של המשתמש החדש
+    setIsInitialPullDone(false); // נעילה מיידית!
     setUser(newUser);
     localStorage.setItem('chathub_user', JSON.stringify(newUser));
     setIsAuthOpen(false);
@@ -128,10 +134,8 @@ export default function App() {
       setUser(null);
       setHistory([]);
       setSavedWebhooks([]);
-      setIsInitialPullDone(false);
-      localStorage.removeItem('chathub_user');
-      localStorage.removeItem('chatHistory');
-      localStorage.removeItem('savedWebhooks');
+      setIsInitialPullDone(false); // חוזרים למצב לא מסונכרן
+      localStorage.clear(); // ניקוי מוחלט של הכל
       setIsAuthOpen(true);
   };
 
