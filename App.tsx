@@ -9,13 +9,8 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'auth_needed';
 
-const STORAGE_PREFIX = 'ch_v30_';
-const GOOGLE_CLIENT_ID = "456093644604-43qt6d36nk36fassgbf1mm6otpav8mti.apps.googleusercontent.com";
-const DRIVE_FILE_NAME = 'chathub_sync_data.json';
-
-declare const google: any;
+const STORAGE_PREFIX = 'ch_v31_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -23,104 +18,9 @@ export default function App() {
   const [savedWebhooks, setSavedWebhooks] = useState<SavedWebhook[]>([]);
   const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [isReady, setIsReady] = useState(false);
-  
-  const accessToken = useRef<string | null>(null);
-  const driveFileId = useRef<string | null>(null);
-  const lastSyncHash = useRef<string>("");
 
-  // מנגנון קבלת טוקן ל-Drive
-  const getDriveToken = useCallback(() => {
-    return new Promise<string>((resolve, reject) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/drive.appdata',
-        callback: (response: any) => {
-          if (response.error) reject(response);
-          accessToken.current = response.access_token;
-          resolve(response.access_token);
-        },
-      });
-      client.requestAccessToken({ prompt: '' });
-    });
-  }, []);
-
-  // מציאת או יצירת קובץ בדרייב
-  const findOrCreateFile = async (token: string) => {
-    // חיפוש
-    const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${DRIVE_FILE_NAME}'`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const searchData = await searchRes.json();
-    
-    if (searchData.files && searchData.files.length > 0) {
-      driveFileId.current = searchData.files[0].id;
-      return searchData.files[0].id;
-    }
-
-    // יצירה אם לא קיים
-    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: DRIVE_FILE_NAME, parents: ['appDataFolder'] })
-    });
-    const createData = await createRes.json();
-    driveFileId.current = createData.id;
-    return createData.id;
-  };
-
-  const fetchFromDrive = useCallback(async () => {
-    if (!accessToken.current) {
-        try { await getDriveToken(); } catch(e) { setSyncStatus('auth_needed'); return; }
-    }
-    setSyncStatus('syncing');
-    try {
-      const fileId = driveFileId.current || await findOrCreateFile(accessToken.current!);
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-        headers: { Authorization: `Bearer ${accessToken.current}` }
-      });
-      
-      if (res.ok) {
-        const data: UserDataContainer = await res.json();
-        if (data) {
-          setHistory(prev => {
-            const combined = [...(data.history || []), ...prev];
-            return Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
-                        .sort((a,b) => b.timestamp - a.timestamp).slice(0, 100);
-          });
-          setSavedWebhooks(prev => {
-            const combined = [...(data.webhooks || []), ...prev];
-            return Array.from(new Map(combined.map(item => [item.url, item])).values());
-          });
-          lastSyncHash.current = JSON.stringify(data);
-          setSyncStatus('success');
-        }
-      }
-    } catch (e) {
-      setSyncStatus('error');
-    }
-  }, [getDriveToken]);
-
-  const saveToDrive = useCallback(async (data: UserDataContainer) => {
-    if (!accessToken.current || !driveFileId.current) return;
-    const currentHash = JSON.stringify(data);
-    if (currentHash === lastSyncHash.current) return;
-
-    setSyncStatus('syncing');
-    try {
-      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId.current}?uploadType=media`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${accessToken.current}`, 'Content-Type': 'application/json' },
-        body: currentHash
-      });
-      lastSyncHash.current = currentHash;
-      setSyncStatus('success');
-    } catch (e) {
-      setSyncStatus('error');
-    }
-  }, []);
-
+  // טעינה מ-LocalStorage (מהיר) וסנכרון ל-State
   useEffect(() => {
     const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
@@ -131,31 +31,74 @@ export default function App() {
 
     if (localUser) {
       setUser(JSON.parse(localUser));
-      fetchFromDrive();
       setIsReady(true);
     } else {
       setIsAuthOpen(true);
       setIsReady(true);
     }
-  }, [fetchFromDrive]);
+  }, []);
 
+  // שמירה אוטומטית לזיכרון המקומי בכל שינוי
   useEffect(() => {
-    if (!user || !isReady) return;
+    if (!isReady) return;
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
-
-    const timer = setTimeout(() => {
-      saveToDrive({ history, webhooks: savedWebhooks });
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [history, savedWebhooks, user, saveToDrive, isReady]);
+  }, [history, savedWebhooks, isReady]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
-    fetchFromDrive();
     setIsAuthOpen(false);
+  };
+
+  const handleLogout = () => {
+    if (confirm('להתנתק? המידע המקומי יימחק. וודא שיש לך הודעת גיבוי בצ\'אט.')) {
+        localStorage.clear();
+        window.location.reload();
+    }
+  };
+
+  // פונקציית הגיבוי לצ'אט - שולחת את כל המידע כהודעה
+  const backupToChat = async (url: string) => {
+    if (!url) return alert('חובה להזין Webhook לשליחת הגיבוי');
+    
+    const data: UserDataContainer = { history, webhooks: savedWebhooks };
+    const encodedData = btoa(encodeURIComponent(JSON.stringify(data)));
+    
+    const payload = {
+        text: `📦 *ChatHub v31 - גיבוי מערכת*\nמאת: ${user?.username}\nתאריך: ${new Date().toLocaleString('he-IL')}\n\nכדי לשחזר, העתיקו את הקוד למטה והדביקו באפליקציה:\n\n\`\`\`\nCH_SYNC:${encodedData}\n\`\`\``
+    };
+
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) alert('הגיבוי נשלח לצ\'אט בהצלחה!');
+        else alert('שגיאה בשליחת הגיבוי לצ\'אט');
+    } catch (e) {
+        alert('שגיאת רשת בשליחת הגיבוי');
+    }
+  };
+
+  const restoreFromCode = (code: string) => {
+    try {
+        if (!code.startsWith('CH_SYNC:')) return alert('קוד גיבוי לא תקין');
+        const encoded = code.replace('CH_SYNC:', '').trim();
+        const decoded = JSON.parse(decodeURIComponent(atob(encoded)));
+        
+        if (decoded.history || decoded.webhooks) {
+            if (confirm('האם לשחזר את המידע? המידע הקיים יידרס.')) {
+                setHistory(decoded.history || []);
+                setSavedWebhooks(decoded.webhooks || []);
+                alert('השחזור הושלם בהצלחה!');
+            }
+        }
+    } catch (e) {
+        alert('שגיאה בפענוח הקוד. וודא שהעתקת את כל הטקסט במדויק.');
+    }
   };
 
   return (
@@ -169,15 +112,9 @@ export default function App() {
           </div>
           
           <div className="px-6 flex items-center gap-4">
-             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
-                syncStatus === 'syncing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                'bg-slate-100 text-slate-500 border border-slate-200'
-             }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                {syncStatus === 'syncing' ? 'סנכרון Drive...' : 
-                 syncStatus === 'success' ? 'מחובר ל-Drive' : 
-                 syncStatus === 'auth_needed' ? 'נדרש אישור גישה' : 'שמור מקומית'}
+             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 border border-indigo-100">
+                <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                מצב גיבוי מקומי פעיל (v31)
              </div>
           </div>
         </div>
@@ -210,12 +147,12 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'success' ? 'success' : 'idle'}
+              syncStatus="idle"
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
-              cloudId="Google Drive"
-              onLogout={() => { localStorage.clear(); window.location.reload(); }}
+              cloudId="Local Device"
+              onLogout={handleLogout}
               onImportFile={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
@@ -235,12 +172,18 @@ export default function App() {
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `chathub_backup.json`;
+                  a.download = `chathub_backup_${new Date().toLocaleDateString()}.json`;
                   a.click();
               }}
-              onSetCloudId={() => {}}
-              onResetCloud={() => {}}
-              onManualSync={fetchFromDrive}
+              onSetCloudId={() => {
+                  const code = prompt('הדבק כאן את קוד הגיבוי מהצ\'אט:');
+                  if (code) restoreFromCode(code);
+              }}
+              onResetCloud={() => {
+                  const url = prompt('הדבק Webhook URL למשלוח גיבוי:');
+                  if (url) backupToChat(url);
+              }}
+              onManualSync={() => {}}
             />
           </div>
         </div>
