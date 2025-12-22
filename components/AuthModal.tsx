@@ -14,7 +14,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
 
   const generateSyncKey = async (googleSubId: string) => {
-    const salt = "chathub_v9_simple_sync";
+    const salt = "chathub_v10_netfree_immune";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -71,17 +71,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-black text-slate-900">ברוכים הבאים</h2>
-          <p className="text-slate-500 mt-2 text-sm italic">מפעיל סנכרון גמיש v9...</p>
-          <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-[10px] text-indigo-700 font-bold leading-relaxed">
-            טיפ: אם הרשת שלכם חוסמת סנכרון ענן, האפליקציה תמשיך לעבוד מקומית. ניתן לגבות נתונים ידנית מהתפריט הצדדי.
+          <h2 className="text-2xl font-black text-slate-900 italic">ברוכים הבאים</h2>
+          <p className="text-slate-500 mt-2 text-sm">סנכרון חסין נטפרי v10</p>
+          <div className="mt-5 p-4 bg-amber-50 rounded-2xl text-[11px] text-amber-800 font-bold leading-relaxed border border-amber-100">
+            אם הסינון חוסם את הגיבוי האוטומטי, תוכלו להשתמש ב-"קוד סנכרון" בתפריט הצדדי כדי להעביר את הנתונים ידנית בין מחשבים.
           </div>
         </div>
         <div className="flex justify-center min-h-[60px]" dir="ltr">
           {loading ? (
             <div className="flex flex-col items-center gap-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">מאמת נתונים...</span>
+                <span className="text-[10px] text-slate-400 font-black uppercase">מאמת נתונים...</span>
             </div>
           ) : <div id="googleBtn"></div>}
         </div>

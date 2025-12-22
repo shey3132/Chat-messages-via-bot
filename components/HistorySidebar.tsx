@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { HistoryItem, SavedWebhook, UserDataContainer } from '../types';
 import SharedPreview from './SharedPreview';
 
@@ -14,7 +14,30 @@ interface HistorySidebarProps {
 }
 
 const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks = [], onLogout, onImport }: HistorySidebarProps) => {
-  
+  const [showSyncCode, setShowSyncCode] = useState(false);
+
+  const generateSyncCode = () => {
+    const data: UserDataContainer = { history, webhooks: savedWebhooks };
+    // כיווץ בסיסי והמרה ל-Base64
+    const str = JSON.stringify(data);
+    const code = btoa(encodeURIComponent(str));
+    return code;
+  };
+
+  const handlePasteSyncCode = () => {
+    const code = prompt('הדבק כאן את קוד הסנכרון מהמחשב השני:');
+    if (!code) return;
+    try {
+      const decoded = decodeURIComponent(atob(code));
+      const data = JSON.parse(decoded);
+      if (confirm('לייבא נתונים מקוד זה? המידע הקיים יוחלף.')) {
+        onImport(data);
+      }
+    } catch (e) {
+      alert('קוד סנכרון לא תקין');
+    }
+  };
+
   const handleExport = () => {
     const data: UserDataContainer = { history, webhooks: savedWebhooks };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -25,117 +48,75 @@ const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks =
     a.click();
   };
 
-  const handleImportClick = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = (e: any) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (re) => {
-        try {
-          const data = JSON.parse(re.target?.result as string);
-          if (confirm('האם לייבא את הנתונים? פעולה זו תחליף את המידע הקיים.')) {
-            onImport(data);
-          }
-        } catch (err) {
-          alert('קובץ לא תקין');
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
   return (
     <aside className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-6 shadow-2xl shadow-slate-200/40 flex flex-col h-full max-h-[calc(100vh-10rem)] border border-white overflow-hidden">
       
       {/* User Info Card */}
       <div className="mb-6 p-5 bg-indigo-600 rounded-[2rem] text-white shadow-xl shadow-indigo-200/50 relative overflow-hidden group">
         <div className="relative z-10 flex items-center justify-between">
-          
-          {/* Logout Button */}
-          <button 
-            onClick={(e) => { e.stopPropagation(); onLogout(); }}
-            className="order-3 p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all border border-white/10 flex items-center justify-center group/logout active:scale-95"
-            title="התנתק"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+          <button onClick={onLogout} className="order-3 p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
           </button>
-
-          {/* Avatar */}
           <div className="flex-shrink-0 order-2">
-            {avatar ? (
-              <img src={avatar} className="w-12 h-12 rounded-2xl border-2 border-white/30 shadow-md object-cover" alt="User" />
-            ) : (
-              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl font-black">
-                {username?.charAt(0).toUpperCase() || '?'}
-              </div>
-            )}
+            {avatar ? <img src={avatar} className="w-12 h-12 rounded-2xl border-2 border-white/30 object-cover" /> : <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-black">{username?.charAt(0) || '?'}</div>}
           </div>
-
-          <div className="flex-1 min-w-0 text-right order-1 px-3">
-            <h4 className="text-lg font-bold truncate mb-0.5">{username || 'אורח'}</h4>
+          <div className="flex-1 text-right order-1 px-3">
+            <h4 className="text-lg font-bold truncate">{username || 'אורח'}</h4>
             <div className="flex items-center gap-1.5 justify-start">
-              <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : syncStatus === 'error' ? 'bg-slate-400' : 'bg-green-400'}`} />
-              <p className="text-[9px] font-bold opacity-80 uppercase tracking-wide truncate">
-                {syncStatus === 'error' ? 'מצב מקומי' : 'סנכרון פעיל'}
-              </p>
+              <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'success' ? 'bg-green-400' : 'bg-amber-400'}`} />
+              <p className="text-[9px] font-bold opacity-80 uppercase">{syncStatus === 'success' ? 'מסונכרן' : 'עבודה מקומית'}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Backup Actions */}
-      <div className="flex gap-2 mb-6">
-        <button onClick={handleExport} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-600 text-[10px] font-bold transition-all">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          ייצוא גיבוי
-        </button>
-        <button onClick={handleImportClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-600 text-[10px] font-bold transition-all">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-          ייבוא גיבוי
-        </button>
+      {/* NetFree-Friendly Sync Actions */}
+      <div className="bg-slate-50 rounded-[1.5rem] p-4 mb-6 border border-slate-100">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 text-center">העברת נתונים (עוקף נטפרי)</span>
+        <div className="flex flex-col gap-2">
+          <button 
+            onClick={() => {
+              const code = generateSyncCode();
+              navigator.clipboard.writeText(code);
+              alert('קוד סנכרון הועתק! הדבק אותו במחשב השני.');
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-white hover:bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 text-xs font-black transition-all shadow-sm active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012-2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+            העתק קוד סנכרון
+          </button>
+          <button 
+            onClick={handlePasteSyncCode}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-white hover:bg-indigo-50 text-slate-600 rounded-xl border border-slate-200 text-xs font-black transition-all shadow-sm active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012-2" /></svg>
+            הזן קוד ממחשב אחר
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mb-6 px-2">
-        <div className="flex items-center gap-2">
-            <h3 className="text-xl font-black text-slate-800">היסטוריה</h3>
-            <span className="flex h-2 w-2 rounded-full bg-indigo-500"></span>
-        </div>
-        <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-3 py-1 rounded-full border border-slate-200">
-          {history.length} / 50
-        </span>
+        <h3 className="text-xl font-black text-slate-800 italic">היסטוריה</h3>
+        <button onClick={handleExport} className="text-[10px] text-indigo-600 font-bold hover:underline">ייצוא קובץ JSON</button>
       </div>
       
       <div className="overflow-y-auto flex-1 space-y-4 p-1 custom-scrollbar">
         {history.length === 0 ? (
-          <div className="text-center text-slate-400 pt-20 px-4">
-            <p className="font-bold text-slate-600">אין הודעות בהיסטוריה</p>
-          </div>
+          <div className="text-center text-slate-400 pt-10">אין הודעות</div>
         ) : (
-          history.map(item => {
-            const targetWebhook = savedWebhooks.find(w => w.url === item.webhookUrl);
-            const targetName = targetWebhook?.name || item.webhookName || 'יעד כללי';
-            return (
-              <div key={item.timestamp} className="history-item border border-slate-100 rounded-[1.8rem] p-4 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all bg-white group">
+          history.map(item => (
+            <div key={item.timestamp} className="border border-slate-100 rounded-[1.8rem] p-4 bg-white shadow-sm">
                 <div className="text-[9px] text-slate-400 font-black mb-2 uppercase">
-                  {new Date(item.timestamp).toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(item.timestamp).toLocaleTimeString('he-IL')}
                 </div>
                 <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/50 mb-3 overflow-hidden">
                   <SharedPreview payload={item.payload} />
                 </div>
-                <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                    <span className="text-[9px] font-bold text-slate-500 truncate">
-                        אל: <span className="text-indigo-600 font-black">{targetName}</span>
-                    </span>
+                <div className="text-[9px] font-bold text-slate-400 truncate px-2">
+                    אל: <span className="text-indigo-600">{item.webhookName || 'יעד כללי'}</span>
                 </div>
-              </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
     </aside>
