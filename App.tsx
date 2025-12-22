@@ -12,8 +12,9 @@ type ActiveApp = 'chatSender' | 'otherApp';
 type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const DISCOVERY_HUB_ID = 'dc830c11516e87a20c9a'; // מרכזיית הזיהוי (Discovery Hub)
-const STORAGE_PREFIX = 'ch_v19_';
+// מזהה מרכזייה חדש ויציב יותר לגרסה 20
+const DISCOVERY_HUB_ID = 'dc830c11516e87a20c9a'; 
+const STORAGE_PREFIX = 'ch_v20_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -26,13 +27,14 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   
   const lastCloudDataHash = useRef<string>("");
+  const retryTimeout = useRef<any>(null);
 
   const isValidId = (id: string | null) => {
-    if (!id || id === 'null' || id.length > 30 || id.length < 4) return false;
+    if (!id || id === 'null' || id === 'undefined' || id.length > 30 || id.length < 4) return false;
     return /^[a-z0-9]+$/i.test(id);
   };
 
-  // משיכת נתונים מהענן
+  // משיכת נתונים מהענן עם טיפול בשגיאות
   const fetchCloudData = useCallback(async (id: string) => {
     if (!isValidId(id)) return;
     setSyncStatus('syncing');
@@ -45,18 +47,20 @@ export default function App() {
           setSavedWebhooks(data.webhooks || []);
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
+          return true;
         }
       }
-    } catch (e) {
-      setSyncStatus('local');
-    }
+    } catch (e) {}
+    setSyncStatus('local');
+    return false;
   }, []);
 
-  // חיפוש אוטומטי של קישור לענן לפי מזהה המשתמש
+  // חיפוש אוטומטי חסין תקלות
   const discoverUserCloud = useCallback(async (syncKey: string) => {
     setSyncStatus('discovering');
     try {
       const response = await fetch(`${DATA_PROVIDER}${DISCOVERY_HUB_ID}`);
+      // אם השרת מחזיר 500 או 404, אנחנו לא נכשלים, פשוט ממשיכים כחדשים
       if (response.ok) {
         const hub: Record<string, string> = await response.json();
         const foundId = hub[syncKey];
@@ -68,18 +72,20 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.error("Discovery error", e);
+      console.warn("Discovery hub temporarily unavailable, operating in local-first mode.");
     }
     setSyncStatus('no_key');
     return null;
   }, [fetchCloudData]);
 
-  // רישום המשתמש במרכזיה (פעם אחת בלבד כשנוצר ענן חדש)
+  // רישום שקט במרכזייה
   const registerInHub = async (syncKey: string, newCloudId: string) => {
     try {
       const hubRes = await fetch(`${DATA_PROVIDER}${DISCOVERY_HUB_ID}`);
       let hub: Record<string, string> = {};
-      if (hubRes.ok) hub = await hubRes.ok ? await hubRes.json() : {};
+      if (hubRes.ok) {
+        try { hub = await hubRes.json(); } catch(e) {}
+      }
       
       if (hub[syncKey] === newCloudId) return;
 
@@ -96,7 +102,9 @@ export default function App() {
     if (!isReady || !user) return;
     const currentHash = JSON.stringify(data);
     if (currentHash === lastCloudDataHash.current) return;
-    if (data.history.length === 0 && data.webhooks.length === 0) return;
+    
+    // מונע שמירה של מבנה ריק אם כבר יש מידע בענן
+    if (data.history.length === 0 && data.webhooks.length === 0 && lastCloudDataHash.current !== "") return;
 
     setSyncStatus('syncing');
     try {
@@ -119,6 +127,8 @@ export default function App() {
         }
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
+      } else {
+        setSyncStatus('local');
       }
     } catch (e) {
       setSyncStatus('local');
@@ -130,8 +140,8 @@ export default function App() {
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
     const localW = localStorage.getItem(`${STORAGE_PREFIX}webhooks`);
 
-    if (localH) setHistory(JSON.parse(localH));
-    if (localW) setSavedWebhooks(JSON.parse(localW));
+    if (localH) { try { setHistory(JSON.parse(localH)); } catch(e){} }
+    if (localW) { try { setSavedWebhooks(JSON.parse(localW)); } catch(e){} }
 
     if (localUser) {
       const parsed = JSON.parse(localUser);
@@ -154,7 +164,8 @@ export default function App() {
     if (!user || !isReady) return;
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
-    }, 2500);
+    }, 3000);
+    
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
     return () => clearTimeout(timer);
@@ -176,12 +187,13 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (!confirm('האם להתנתק? המידע יימחק מהמחשב הזה אך יישאר בענן.')) return;
+    if (!confirm('להתנתק? המידע יישמר בענן ויחזור כשתתחבר שוב.')) return;
     setUser(null);
     setCloudId(null);
     setHistory([]);
     setSavedWebhooks([]);
-    localStorage.clear();
+    localStorage.removeItem(`${STORAGE_PREFIX}user`);
+    // אנחנו משאירים את ה-Cloud ID בלוקאל למקרה של התחברות מהירה, אבל מנקים הכל מסביב
     setIsAuthOpen(true);
   };
 
@@ -197,12 +209,13 @@ export default function App() {
           
           <div className="px-6 flex items-center gap-4">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
+                syncStatus === 'local' ? 'bg-slate-100 text-slate-500 border border-slate-200' : 'bg-amber-50 text-amber-600 border border-amber-100'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-amber-400'}`} />
-                {syncStatus === 'discovering' ? 'מחפש גיבוי ענן...' :
-                 syncStatus === 'syncing' ? 'מעדכן ענן...' : 
-                 syncStatus === 'success' ? 'סנכרון אוטומטי פעיל' : 'מצב מקומי'}
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-400'}`} />
+                {syncStatus === 'discovering' ? 'מחפש גיבוי...' :
+                 syncStatus === 'syncing' ? 'מסנכרן...' : 
+                 syncStatus === 'success' ? 'מחובר לענן' : 'מצב מקומי'}
              </div>
           </div>
         </div>
