@@ -9,10 +9,10 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering' | 'offline';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering';
 
-const DATA_PROVIDER = 'https://api.npoint.io'; // הסרת סלאש סופי למניעת כפילויות
-const STORAGE_PREFIX = 'ch_v25_'; 
+const DATA_PROVIDER = 'https://api.npoint.io';
+const STORAGE_PREFIX = 'ch_v27_'; 
 
 const HUB_SHARDS: Record<string, string> = {
   '0': 'b738495f36e47f763a86', '1': 'c29384f5a6b7c8d9e0f1', '2': 'a1b2c3d4e5f6a7b8c9d0',
@@ -34,57 +34,54 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   
   const lastCloudDataHash = useRef<string>("");
-  const isCloudOffline = useRef<boolean>(false);
-  const offlineTimer = useRef<number>(0);
-
-  const getShardId = (syncKey: string) => {
-    const char = syncKey.charAt(0).toLowerCase();
-    return HUB_SHARDS[char] || HUB_SHARDS['a'];
-  };
-
-  const setOfflineMode = (duration: number = 300000) => { // ברירת מחדל 5 דקות
-    isCloudOffline.current = true;
-    offlineTimer.current = Date.now() + duration;
-    setSyncStatus('offline');
-    console.warn(`Cloud sync entered offline mode for ${duration/1000}s due to server errors.`);
-  };
+  const isSyncLocked = useRef<boolean>(false);
 
   const isValidId = (id: string | null) => {
     if (!id || id === 'null' || id === 'undefined' || id.length > 30 || id.length < 4) return false;
     return /^[a-z0-9]+$/i.test(id);
   };
 
+  const mergeData = useCallback((cloudData: UserDataContainer) => {
+    setHistory(prevLocal => {
+      const combined = [...(cloudData.history || []), ...prevLocal];
+      // הסרת כפילויות לפי טיימסטמפ ומיון מחדש
+      const unique = Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
+                        .sort((a,b) => b.timestamp - a.timestamp)
+                        .slice(0, 100);
+      return unique;
+    });
+
+    setSavedWebhooks(prevLocal => {
+      const combined = [...(cloudData.webhooks || []), ...prevLocal];
+      const unique = Array.from(new Map(combined.map(item => [item.url, item])).values());
+      return unique;
+    });
+  }, []);
+
   const fetchCloudData = useCallback(async (id: string) => {
-    if (!isValidId(id) || isCloudOffline.current) return;
+    if (!isValidId(id)) return;
     setSyncStatus('syncing');
     try {
       const response = await fetch(`${DATA_PROVIDER}/${id}`);
       if (response.ok) {
         const data: UserDataContainer = await response.json();
-        if (data && (Array.isArray(data.history) || Array.isArray(data.webhooks))) {
-          setHistory(prev => {
-             const combined = [...(data.history || []), ...prev];
-             return Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
-                        .sort((a,b) => b.timestamp - a.timestamp)
-                        .slice(0, 50);
-          });
-          setSavedWebhooks(data.webhooks || []);
-          lastCloudDataHash.current = JSON.stringify(data);
+        if (data) {
+          mergeData(data);
+          lastCloudDataHash.current = JSON.stringify({ history: data.history, webhooks: data.webhooks });
           setSyncStatus('success');
           return true;
         }
-      } else if (response.status >= 500) {
-        setOfflineMode();
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Fetch error:", e);
+    }
     setSyncStatus('local');
     return false;
-  }, []);
+  }, [mergeData]);
 
   const discoverUserCloud = useCallback(async (syncKey: string) => {
-    if (isCloudOffline.current) return null;
     setSyncStatus('discovering');
-    const shardId = getShardId(syncKey);
+    const shardId = HUB_SHARDS[syncKey.charAt(0).toLowerCase()] || HUB_SHARDS['a'];
     try {
       const response = await fetch(`${DATA_PROVIDER}/${shardId}`);
       if (response.ok) {
@@ -96,61 +93,29 @@ export default function App() {
           await fetchCloudData(foundId);
           return foundId;
         }
-      } else if (response.status >= 500) {
-        setOfflineMode();
       }
     } catch (e) {}
     setSyncStatus('local');
     return null;
   }, [fetchCloudData]);
 
-  const registerInHub = async (syncKey: string, newCloudId: string) => {
-    if (isCloudOffline.current) return;
-    const shardId = getShardId(syncKey);
-    try {
-      const hubRes = await fetch(`${DATA_PROVIDER}/${shardId}`);
-      let hub: Record<string, string> = {};
-      if (hubRes.ok) {
-        try { hub = await hubRes.json(); } catch(e) {}
-      }
-      hub[syncKey] = newCloudId;
-      await fetch(`${DATA_PROVIDER}/${shardId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(hub)
-      });
-    } catch (e) {}
-  };
-
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
-    if (!isReady || !user) return;
+    if (!isReady || !user || isSyncLocked.current) return;
     
-    // בדיקת Circuit Breaker
-    if (isCloudOffline.current) {
-        if (Date.now() > offlineTimer.current) {
-            isCloudOffline.current = false;
-        } else {
-            setSyncStatus('offline');
-            return;
-        }
-    }
-
     const currentHash = JSON.stringify(data);
-    if (currentHash === lastCloudDataHash.current) {
-        setSyncStatus(isValidId(cloudId) ? 'success' : 'local');
-        return;
-    }
-    
-    if (data.history.length === 0 && data.webhooks.length === 0) return;
+    if (currentHash === lastCloudDataHash.current) return;
 
+    isSyncLocked.current = true;
     setSyncStatus('syncing');
+
     try {
       const isExisting = isValidId(cloudId);
-      // תיקון קריטי: npoint משתמש ב-POST לכתובת הבסיס ליצירה חדשה, לא ל-/bins
-      const url = isExisting ? `${DATA_PROVIDER}/${cloudId}` : DATA_PROVIDER;
-      
+      // תיקון: אם המזהה קיים משתמשים ב-PUT לעדכון. אם לא, POST ליצירה חדשה.
+      const url = isExisting ? `${DATA_PROVIDER}/${cloudId}` : `${DATA_PROVIDER}/bins`;
+      const method = isExisting ? 'PUT' : 'POST';
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: currentHash
       });
@@ -158,22 +123,36 @@ export default function App() {
       if (response.ok) {
         const resData = await response.json();
         const newId = isExisting ? cloudId : resData.id;
+        
         if (newId && isValidId(newId)) {
-          setCloudId(newId);
-          localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
-          if (!isExisting) await registerInHub(user.syncKey, newId);
+          if (!isExisting) {
+            setCloudId(newId);
+            localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
+            // רישום ב-Hub
+            const shardId = HUB_SHARDS[user.syncKey.charAt(0).toLowerCase()] || HUB_SHARDS['a'];
+            const hubRes = await fetch(`${DATA_PROVIDER}/${shardId}`);
+            let hub = hubRes.ok ? await hubRes.json() : {};
+            hub[user.syncKey] = newId;
+            await fetch(`${DATA_PROVIDER}/${shardId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(hub)
+            });
+          }
           lastCloudDataHash.current = currentHash;
           setSyncStatus('success');
         }
       } else {
-        // אם קיבלנו 404 או 500, נכנסים למצב אופליין כדי לא להציף את הלוג
-        setOfflineMode();
+        setSyncStatus('error');
       }
     } catch (e) {
-      setSyncStatus('local');
+      setSyncStatus('error');
+    } finally {
+      isSyncLocked.current = false;
     }
   }, [isReady, user, cloudId]);
 
+  // טעינה ראשונית
   useEffect(() => {
     const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
@@ -199,24 +178,24 @@ export default function App() {
     }
   }, [fetchCloudData, discoverUserCloud]);
 
+  // לופ סנכרון ושמירה מקומית
   useEffect(() => {
     if (!user || !isReady) return;
-    const interval = isCloudOffline.current ? 30000 : 10000;
-    const timer = setTimeout(() => {
-      saveToCloud({ history, webhooks: savedWebhooks });
-    }, interval); 
     
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
+
+    const timer = setTimeout(() => {
+      saveToCloud({ history, webhooks: savedWebhooks });
+    }, 10000); 
+    
     return () => clearTimeout(timer);
   }, [history, savedWebhooks, user, saveToCloud, isReady]);
 
-  // Fix: Added missing handleLogin function.
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
-    
     const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
     if (isValidId(savedId)) {
       setCloudId(savedId!);
@@ -224,14 +203,18 @@ export default function App() {
     } else {
       discoverUserCloud(syncKey);
     }
-    
     setIsAuthOpen(false);
   };
 
   const handleLogout = () => {
-    if (!confirm('להתנתק? הנתונים יימחקו מהמחשב הזה בלבד.')) return;
+    if (!confirm('להתנתק? המידע יישאר בענן אך יימחק מהדפדפן הזה.')) return;
     localStorage.clear();
     window.location.reload();
+  };
+
+  const triggerManualSync = () => {
+    if (cloudId) fetchCloudData(cloudId);
+    else if (user) discoverUserCloud(user.syncKey);
   };
 
   return (
@@ -247,14 +230,14 @@ export default function App() {
           <div className="px-6 flex items-center gap-4">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
-                syncStatus === 'offline' ? 'bg-slate-100 text-slate-400 border border-slate-200' :
-                'bg-amber-50 text-amber-600 border border-amber-100'
+                syncStatus === 'syncing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                'bg-slate-100 text-slate-500 border border-slate-200'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-300'}`} />
-                {syncStatus === 'discovering' ? 'מחבר ענן...' :
-                 syncStatus === 'syncing' ? 'מעדכן ענן...' : 
-                 syncStatus === 'success' ? 'גיבוי ענן פעיל' : 
-                 syncStatus === 'offline' ? 'מצב מקומי (שרת עמוס)' : 'עבודה מקומית'}
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                {syncStatus === 'discovering' ? 'מחפש גיבוי...' :
+                 syncStatus === 'syncing' ? 'מסנכרן לענן...' : 
+                 syncStatus === 'success' ? 'מסונכרן לענן' : 
+                 syncStatus === 'error' ? 'שגיאת סנכרון (מנסה שוב...)' : 'שמור מקומית'}
              </div>
           </div>
         </div>
@@ -265,7 +248,7 @@ export default function App() {
               <GoogleChatSender 
                 saveHistory={(p, url) => {
                     const webhook = savedWebhooks.find(w => w.url === url);
-                    setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev].slice(0, 50));
+                    setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
                 }} 
                 savedWebhooks={savedWebhooks}
                 onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
@@ -275,7 +258,7 @@ export default function App() {
               <OtherApp 
                 saveHistory={(p, url) => {
                     const webhook = savedWebhooks.find(w => w.url === url);
-                    setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev].slice(0, 50));
+                    setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
                 }}
                 savedWebhooks={savedWebhooks}
                 onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
@@ -287,7 +270,7 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus={syncStatus === 'syncing' || syncStatus === 'discovering' ? 'syncing' : syncStatus === 'success' ? 'success' : 'idle'}
+              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'success' ? 'success' : 'idle'}
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
@@ -302,6 +285,7 @@ export default function App() {
                 fetchCloudData(id);
               }}
               onResetCloud={() => setCloudId(null)}
+              onManualSync={triggerManualSync}
             />
           </div>
         </div>

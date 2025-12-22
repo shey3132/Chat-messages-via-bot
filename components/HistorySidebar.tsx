@@ -14,9 +14,10 @@ interface HistorySidebarProps {
   onImport: (data: UserDataContainer) => void;
   onSetCloudId: (id: string) => void;
   onResetCloud: () => void;
+  onManualSync: () => void;
 }
 
-const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks = [], cloudId, onLogout, onImport, onSetCloudId, onResetCloud }: HistorySidebarProps) => {
+const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks = [], cloudId, onLogout, onImport, onSetCloudId, onResetCloud, onManualSync }: HistorySidebarProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
@@ -36,25 +37,37 @@ const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks =
             <div className="flex items-center gap-2 mt-1">
                 <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'success' ? 'bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)]' : 'bg-amber-400 animate-pulse'}`} />
                 <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">
-                  {syncStatus === 'success' ? 'מגובה אוטומטית' : 'מסנכרן...'}
+                  {syncStatus === 'success' ? 'מגובה אוטומטית' : 'עבודה מקומית'}
                 </p>
             </div>
           </div>
         </div>
       </div>
 
-      <button 
-        onClick={() => setShowAdvanced(!showAdvanced)} 
-        className="mb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors text-center block w-full"
-      >
-        {showAdvanced ? 'הסתר הגדרות ענן' : 'הגדרות סנכרון מתקדמות'}
-      </button>
+      <div className="flex flex-col gap-2 mb-4">
+        <button 
+            onClick={() => setShowAdvanced(!showAdvanced)} 
+            className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors text-center block w-full"
+        >
+            {showAdvanced ? 'הסתר הגדרות' : 'הגדרות סנכרון ידניות'}
+        </button>
+        
+        {syncStatus !== 'success' && (
+            <button 
+                onClick={onManualSync}
+                className="text-[9px] font-bold text-indigo-500 bg-indigo-50 py-1.5 rounded-full border border-indigo-100 hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                נסה לחבר ענן כעת
+            </button>
+        )}
+      </div>
 
       {/* Advanced Cloud Management */}
       {showAdvanced && (
         <div className="mb-6 space-y-3 animate-in slide-in-from-top-2 duration-300 p-4 bg-slate-50 rounded-[1.8rem] border border-slate-100">
-            <div className="text-[10px] font-bold text-slate-500 mb-2">מזהה ענן נוכחי:</div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200 text-[10px] font-mono truncate text-indigo-600 mb-4">{cloudId || 'לא נוצר עדיין'}</div>
+            <div className="text-[10px] font-bold text-slate-500 mb-2 text-right">מזהה ענן נוכחי:</div>
+            <div className="bg-white p-2 rounded-lg border border-slate-200 text-[10px] font-mono truncate text-indigo-600 mb-4 text-center">{cloudId || 'לא נוצר עדיין'}</div>
             
             <div className="grid grid-cols-2 gap-2">
                 <button 
@@ -94,8 +107,8 @@ const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks =
                 <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/50 mb-3 overflow-hidden">
                   <SharedPreview payload={item.payload} />
                 </div>
-                <div className="text-[9px] font-bold text-slate-400 truncate px-2">
-                    אל: <span className="text-indigo-600 font-black">{item.webhookName || 'יעד כללי'}</span>
+                <div className="text-[9px] font-bold text-slate-400 truncate px-2 text-right">
+                    יעד: <span className="text-indigo-600 font-black">{item.webhookName || 'כללי'}</span>
                 </div>
             </div>
           ))
