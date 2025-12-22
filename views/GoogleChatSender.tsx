@@ -165,7 +165,7 @@ const commonInputClasses = "block w-full mt-1 rounded-lg border-slate-300 bg-whi
 const labelClasses = "block text-sm font-medium text-slate-600";
 
 interface GoogleChatSenderProps {
-    saveHistory: (payload: ChatMessagePayload) => void;
+    saveHistory: (payload: ChatMessagePayload, webhookUrl: string) => void;
     savedWebhooks: SavedWebhook[];
     onAddWebhook: (webhook: SavedWebhook) => void;
     onDeleteWebhook: (id: string) => void;
@@ -265,7 +265,7 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
         setLog(`שגיאה בשליחה: HTTP ${response.status}`);
       } else {
         setLog(`ההודעה נשלחה בהצלחה!`);
-        saveHistory(payload);
+        saveHistory(payload, webhookUrl);
         if (afterSend === 'clear') {
           setPlainText('');
           setCardData(initialCardFormData);

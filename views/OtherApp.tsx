@@ -37,7 +37,7 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                       autoComplete="off"
                     />
                     <button onClick={() => setIsOpen(!isOpen)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                     </button>
                 </div>
                 <button 
@@ -45,7 +45,7 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                     title="שמור וובוק זה"
                     className={`p-2 rounded-lg border transition-all ${isSaving ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'}`}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
                 </button>
             </div>
             {isOpen && (
@@ -147,7 +147,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onClose }) => {
 };
 
 interface OtherAppProps {
-    saveHistory: (payload: ChatMessagePayload) => void;
+    saveHistory: (payload: ChatMessagePayload, webhookUrl: string) => void;
     savedWebhooks: SavedWebhook[];
     onAddWebhook: (webhook: SavedWebhook) => void;
     onDeleteWebhook: (id: string) => void;
@@ -179,7 +179,12 @@ export default function OtherApp({ saveHistory, savedWebhooks, onAddWebhook, onD
     setSendingState('sending');
     try {
       const response = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (response.ok) { setLog('הסקר נשלח!'); saveHistory(payload); setSendingState('success'); setTimeout(() => setSendingState('idle'), 2000); }
+      if (response.ok) { 
+          setLog('הסקר נשלח!'); 
+          saveHistory(payload, webhookUrl); 
+          setSendingState('success'); 
+          setTimeout(() => setSendingState('idle'), 2000); 
+      }
       else { setLog('שגיאה בשליחה.'); setSendingState('error'); }
     } catch { setLog('שגיאת רשת.'); setSendingState('error'); }
   };

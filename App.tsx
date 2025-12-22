@@ -20,23 +20,10 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
   
-  // Fix: Use ReturnType<typeof setTimeout> instead of NodeJS.Timeout to avoid namespace error in browser environment
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstLoad = useRef(true);
 
-  // 1. טעינה ראשונית מ-LocalStorage
-  useEffect(() => {
-    const savedUser = localStorage.getItem('chathub_user');
-    const storedHistory = localStorage.getItem('chatHistory');
-    const storedWebhooks = localStorage.getItem('savedWebhooks');
-
-    if (storedHistory) setHistory(JSON.parse(storedHistory));
-    if (storedWebhooks) setSavedWebhooks(JSON.parse(storedWebhooks));
-    if (savedUser) setUser(JSON.parse(savedUser));
-    else setIsAuthOpen(true);
-  }, []);
-
-  // 2. פונקציית משיכה מהענן
+  // 1. פונקציית משיכה מהענן - מוגדרת למעלה כדי שתהיה זמינה
   const pullFromCloud = useCallback(async (key: string) => {
     if (!key) return;
     setSyncStatus('syncing');
@@ -54,28 +41,42 @@ export default function App() {
           cloudWebhooks = remoteData.webhooks || [];
         }
 
-        // מיזוג מידע - מניעת כפילויות
+        // דריסת היסטוריה מקומית רק אם קיים מידע בענן
         if (cloudHistory.length > 0) {
-          setHistory(prev => {
-            const combined = [...prev, ...cloudHistory];
-            return Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .slice(0, 50);
-          });
+          setHistory(cloudHistory.slice(0, 50));
         }
         
         if (cloudWebhooks.length > 0) {
-          setSavedWebhooks(prev => {
-            const combined = [...prev, ...cloudWebhooks];
-            return Array.from(new Map(combined.map(item => [item.id, item])).values());
-          });
+          setSavedWebhooks(cloudWebhooks);
         }
+
         setSyncStatus('success');
+      } else {
+        setSyncStatus('idle');
       }
     } catch (e) {
       setSyncStatus('error');
     }
   }, []);
+
+  // 2. טעינה ראשונית מ-LocalStorage
+  useEffect(() => {
+    const savedUser = localStorage.getItem('chathub_user');
+    const storedHistory = localStorage.getItem('chatHistory');
+    const storedWebhooks = localStorage.getItem('savedWebhooks');
+
+    if (storedHistory) setHistory(JSON.parse(storedHistory));
+    if (storedWebhooks) setSavedWebhooks(JSON.parse(storedWebhooks));
+    
+    if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        // משיכה מיידית מהענן אם המשתמש מחובר
+        pullFromCloud(parsedUser.syncKey);
+    } else {
+        setIsAuthOpen(true);
+    }
+  }, [pullFromCloud]);
 
   // 3. פונקציית דחיפה לענן
   const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
@@ -93,11 +94,10 @@ export default function App() {
     }
   }, []);
 
-  // 4. סנכרון אוטומטי בשינויים
+  // 4. סנכרון אוטומטי בשינויים (עם Delay למניעת עומס)
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
-      if (user?.syncKey) pullFromCloud(user.syncKey);
       return;
     }
 
@@ -105,12 +105,12 @@ export default function App() {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
       syncTimeoutRef.current = setTimeout(() => {
         pushToCloud(user.syncKey, { history, webhooks: savedWebhooks });
-      }, 2000);
+      }, 1500);
     }
 
     localStorage.setItem('chatHistory', JSON.stringify(history));
     localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
-  }, [history, savedWebhooks, user?.syncKey, pullFromCloud, pushToCloud]);
+  }, [history, savedWebhooks, user?.syncKey, pushToCloud]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
@@ -120,9 +120,23 @@ export default function App() {
     pullFromCloud(syncKey);
   };
 
-  const saveHistory = (payload: ChatMessagePayload) => {
+  const handleLogout = () => {
+      setUser(null);
+      setHistory([]);
+      setSavedWebhooks([]);
+      localStorage.clear();
+      setIsAuthOpen(true);
+  };
+
+  const saveHistory = (payload: ChatMessagePayload, webhookUrl: string) => {
+    const webhook = savedWebhooks.find(w => w.url === webhookUrl);
     setHistory(prev => {
-      const newItem: HistoryItem = { timestamp: Date.now(), payload };
+      const newItem: HistoryItem = { 
+          timestamp: Date.now(), 
+          payload,
+          webhookUrl,
+          webhookName: webhook?.name
+      };
       return [newItem, ...prev].slice(0, 50);
     });
   };
@@ -185,6 +199,8 @@ export default function App() {
               syncStatus={syncStatus}
               username={user?.username}
               avatar={user?.avatar}
+              savedWebhooks={savedWebhooks}
+              onLogout={handleLogout}
             />
           </div>
         </div>

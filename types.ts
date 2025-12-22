@@ -85,6 +85,8 @@ export interface ChatMessagePayload {
 export interface HistoryItem {
   timestamp: number;
   payload: ChatMessagePayload;
+  webhookUrl?: string;
+  webhookName?: string;
 }
 
 // --- New: Saved Webhook Type ---
