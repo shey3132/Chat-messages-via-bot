@@ -20,10 +20,13 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
   
+  // דגל קריטי: האם סיימנו משיכה ראשונית מהענן? מונע דריסת נתונים ישנים בנתונים ריקים
+  const [isInitialPullDone, setIsInitialPullDone] = useState(false);
+  
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstLoad = useRef(true);
 
-  // 1. פונקציית משיכה מהענן - מוגדרת למעלה כדי שתהיה זמינה
+  // 1. פונקציית משיכה מהענן
   const pullFromCloud = useCallback(async (key: string) => {
     if (!key) return;
     setSyncStatus('syncing');
@@ -41,21 +44,18 @@ export default function App() {
           cloudWebhooks = remoteData.webhooks || [];
         }
 
-        // דריסת היסטוריה מקומית רק אם קיים מידע בענן
-        if (cloudHistory.length > 0) {
-          setHistory(cloudHistory.slice(0, 50));
-        }
-        
-        if (cloudWebhooks.length > 0) {
-          setSavedWebhooks(cloudWebhooks);
-        }
-
+        // אם יש מידע בענן - נטען אותו. אם אין, נשאיר מה שיש (או ריק)
+        setHistory(cloudHistory.slice(0, 50));
+        setSavedWebhooks(cloudWebhooks);
         setSyncStatus('success');
       } else {
         setSyncStatus('idle');
       }
     } catch (e) {
+      console.error("Sync Error:", e);
       setSyncStatus('error');
+    } finally {
+      setIsInitialPullDone(true); // עכשיו מותר לסנכרן לענן
     }
   }, []);
 
@@ -71,10 +71,10 @@ export default function App() {
     if (savedUser) {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
-        // משיכה מיידית מהענן אם המשתמש מחובר
         pullFromCloud(parsedUser.syncKey);
     } else {
         setIsAuthOpen(true);
+        setIsInitialPullDone(true); // אם אין משתמש, אין מה למשוך
     }
   }, [pullFromCloud]);
 
@@ -83,20 +83,22 @@ export default function App() {
     if (!key) return;
     setSyncStatus('syncing');
     try {
-      await fetch(`${SYNC_PROVIDER_URL}${key}`, {
+      const response = await fetch(`${SYNC_PROVIDER_URL}${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      setSyncStatus('success');
+      if (response.ok) setSyncStatus('success');
+      else setSyncStatus('error');
     } catch (e) {
       setSyncStatus('error');
     }
   }, []);
 
-  // 4. סנכרון אוטומטי בשינויים (עם Delay למניעת עומס)
+  // 4. סנכרון אוטומטי בשינויים
   useEffect(() => {
-    if (isFirstLoad.current) {
+    // מניעת הרצה בטעינה ראשונה או לפני משיכה מהענן
+    if (isFirstLoad.current || !isInitialPullDone) {
       isFirstLoad.current = false;
       return;
     }
@@ -105,15 +107,16 @@ export default function App() {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
       syncTimeoutRef.current = setTimeout(() => {
         pushToCloud(user.syncKey, { history, webhooks: savedWebhooks });
-      }, 1500);
+      }, 1000);
     }
 
     localStorage.setItem('chatHistory', JSON.stringify(history));
     localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
-  }, [history, savedWebhooks, user?.syncKey, pushToCloud]);
+  }, [history, savedWebhooks, user?.syncKey, pushToCloud, isInitialPullDone]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
+    setIsInitialPullDone(false); // ננעל סנכרון יוצא עד שנמשוך את המידע של המשתמש החדש
     setUser(newUser);
     localStorage.setItem('chathub_user', JSON.stringify(newUser));
     setIsAuthOpen(false);
@@ -121,10 +124,14 @@ export default function App() {
   };
 
   const handleLogout = () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
       setUser(null);
       setHistory([]);
       setSavedWebhooks([]);
-      localStorage.clear();
+      setIsInitialPullDone(false);
+      localStorage.removeItem('chathub_user');
+      localStorage.removeItem('chatHistory');
+      localStorage.removeItem('savedWebhooks');
       setIsAuthOpen(true);
   };
 
@@ -142,7 +149,10 @@ export default function App() {
   };
 
   const handleAddWebhook = (webhook: SavedWebhook) => {
-    setSavedWebhooks(prev => [...prev, webhook]);
+    setSavedWebhooks(prev => {
+      if (prev.find(w => w.url === webhook.url)) return prev;
+      return [...prev, webhook];
+    });
   };
 
   const handleDeleteWebhook = (id: string) => {
@@ -173,7 +183,6 @@ export default function App() {
         </div>
 
         <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
-          {/* Main App Area */}
           <main className="flex-1 min-h-0">
             {activeApp === 'chatSender' ? (
               <GoogleChatSender 
@@ -192,7 +201,6 @@ export default function App() {
             )}
           </main>
 
-          {/* Sidebar */}
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
