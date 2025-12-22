@@ -14,8 +14,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
 
   const generateSyncKey = async (googleSubId: string) => {
-    // גרסה 5 - מפתח חדש ונקי למניעת בעיות CORS וסנכרון
-    const salt = "chathub_final_v5_stable";
+    const salt = "chathub_v7_stable_key";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -51,18 +50,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
               setLoading(false);
             }
           },
-          auto_select: false,
         });
-
         const btnContainer = document.getElementById("googleBtn");
         if (btnContainer) {
-          google.accounts.id.renderButton(btnContainer, {
-            theme: "outline",
-            size: "large",
-            width: 280,
-            text: "continue_with",
-            shape: "pill",
-          });
+          google.accounts.id.renderButton(btnContainer, { theme: "outline", size: "large", width: 280, shape: "pill" });
         }
       } else {
         setTimeout(initGoogle, 500);
@@ -72,29 +63,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   }, [onLogin]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-2xl">
-      <div className="bg-white w-full max-w-md rounded-[3rem] shadow-2xl p-8 sm:p-12 border border-white/20">
-        <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-indigo-600 rounded-[2.5rem] mx-auto mb-6 flex items-center justify-center shadow-xl shadow-indigo-200">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-xl">
+      <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-white">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-3xl font-black text-slate-900 leading-tight">חיבור מאובטח</h2>
-          <p className="text-slate-500 mt-3 text-sm leading-relaxed px-4 italic">טוען את ההיסטוריה והוובוקים שלך מהענן...</p>
+          <h2 className="text-2xl font-black text-slate-900">כניסה למערכת</h2>
+          <p className="text-slate-500 mt-2 text-sm italic">מגבה את הנתונים שלך לענן v7...</p>
         </div>
-
-        {error && <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold text-center border border-red-100">{error}</div>}
-
-        <div className="flex flex-col items-center justify-center min-h-[120px]" dir="ltr">
-          {loading ? (
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-[11px] font-black text-indigo-600 uppercase tracking-widest animate-pulse" dir="rtl">מבצע סנכרון נתונים...</p>
-            </div>
-          ) : (
-            <div id="googleBtn" className="w-full flex justify-center scale-110"></div>
-          )}
+        <div className="flex justify-center min-h-[60px]" dir="ltr">
+          {loading ? <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div> : <div id="googleBtn"></div>}
         </div>
       </div>
     </div>
