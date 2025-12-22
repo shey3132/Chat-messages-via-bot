@@ -14,7 +14,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
 
   const generateSyncKey = async (googleSubId: string) => {
-    const salt = "chathub_v7_stable_key";
+    const salt = "chathub_v8_netfree_fix";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -72,10 +72,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
             </svg>
           </div>
           <h2 className="text-2xl font-black text-slate-900">כניסה למערכת</h2>
-          <p className="text-slate-500 mt-2 text-sm italic">מגבה את הנתונים שלך לענן v7...</p>
+          <p className="text-slate-500 mt-2 text-sm italic">מפעיל סנכרון מאובטח v8...</p>
+          {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
         </div>
         <div className="flex justify-center min-h-[60px]" dir="ltr">
-          {loading ? <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div> : <div id="googleBtn"></div>}
+          {loading ? (
+            <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">מאמת נתונים...</span>
+            </div>
+          ) : <div id="googleBtn"></div>}
         </div>
       </div>
     </div>
