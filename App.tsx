@@ -37,7 +37,6 @@ export default function App() {
       if (response.ok) {
         const remoteData = await response.json();
         
-        // Handle both old array format and new object format
         let cloudHistory: HistoryItem[] = [];
         let cloudWebhooks: SavedWebhook[] = [];
 
@@ -177,7 +176,7 @@ export default function App() {
              {user && (
                <div className="flex items-center gap-3 bg-slate-50 pl-4 py-1.5 pr-1.5 rounded-full border border-slate-100 shadow-sm">
                   <div className="flex flex-col items-end">
-                    <span className="text-xs font-black text-slate-800 leading-none">{user.username}</span>
+                    <span className="text-xs font-extrabold text-slate-800 leading-none">{user.username}</span>
                     <span className="text-[9px] text-green-500 font-bold mt-0.5">מחובר ומסונכרן</span>
                   </div>
                   {user.avatar ? (

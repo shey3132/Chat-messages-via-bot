@@ -85,7 +85,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
               className="w-14 h-14 brightness-0 invert" 
             />
           </div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">התחברות מהירה</h2>
+          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">התחברות מהירה</h2>
           <p className="text-slate-500 mt-2 font-medium">ההיסטוריה שלך תסתנכרן אוטומטית</p>
         </div>
 

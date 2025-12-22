@@ -30,7 +30,7 @@ const HistorySidebar = ({ history, syncStatus, username, avatar }: HistorySideba
               }`} />
               <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">מסונכרן לענן</h4>
             </div>
-            <p className="text-lg font-black tracking-tight mt-0.5">{username || 'שלום!'}</p>
+            <p className="text-lg font-extrabold tracking-tight mt-0.5">{username || 'שלום!'}</p>
           </div>
         </div>
         <div className="absolute -right-6 -bottom-6 opacity-10">
