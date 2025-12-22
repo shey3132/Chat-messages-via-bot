@@ -30,12 +30,12 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                       type="text" 
                       value={currentUrl} 
                       onChange={(e) => onSelect(e.target.value)} 
-                      placeholder="הדבק Webhook URL..." 
+                      placeholder="הדבק כאן את ה-Webhook URL..." 
                       className="block w-full rounded-2xl border-white/10 bg-white/5 shadow-inner focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all pr-12 h-14 text-sm text-slate-100 placeholder:text-slate-600"
                       autoComplete="off"
                     />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 00(5.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                     </div>
                     <button 
                         onClick={() => setIsOpen(!isOpen)}
@@ -46,6 +46,7 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                 </div>
                 <button 
                     onClick={() => setIsSaving(!isSaving)}
+                    title="שמור יעד זה"
                     className={`h-14 w-14 flex items-center justify-center rounded-2xl border transition-all ${isSaving ? 'bg-indigo-600 text-white border-indigo-600 shadow-[0_0_20px_rgba(79,70,229,0.5)]' : 'bg-white/5 text-slate-500 border-white/10 hover:border-indigo-500/50 hover:text-indigo-400'}`}
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
@@ -53,13 +54,13 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
             </div>
 
             {isOpen && (
-                <div className="absolute z-50 w-full mt-4 bg-slate-900/95 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_32px_64px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="absolute z-50 w-full mt-4 bg-slate-900/98 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_32px_64px_rgba(0,0,0,0.7)] border border-white/10 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
                     <div className="p-5 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">וובוקים שמורים ({savedWebhooks.length})</span>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">יעדים שמורים ({savedWebhooks.length})</span>
                     </div>
-                    <div className="max-h-80 overflow-y-auto">
+                    <div className="max-h-80 overflow-y-auto custom-scrollbar">
                         {savedWebhooks.length === 0 ? (
-                            <div className="p-12 text-center opacity-30 italic text-slate-400">אין פריטים שמורים</div>
+                            <div className="p-12 text-center opacity-40 italic text-slate-400 text-sm">אין פריטים שמורים עדיין</div>
                         ) : (
                             savedWebhooks.map(w => (
                                 <div key={w.id} className="flex items-center justify-between p-3 hover:bg-white/5 group border-b border-white/5 last:border-0 mx-3 transition-colors rounded-2xl mt-1 first:mt-2 last:mb-2">
@@ -68,7 +69,7 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                                         className="flex-1 text-right px-4 py-2"
                                     >
                                         <div className="font-black text-slate-100 text-sm tracking-tight">{w.name}</div>
-                                        <div className="text-[10px] text-slate-500 truncate max-w-[300px] mt-1 font-mono">{w.url}</div>
+                                        <div className="text-[10px] text-slate-600 truncate max-w-[300px] mt-1 font-mono">{w.url}</div>
                                     </button>
                                     <button 
                                         onClick={() => onDelete(w.id)}
@@ -84,13 +85,13 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
             )}
 
             {isSaving && (
-                <div className="absolute z-50 left-0 mt-4 p-6 bg-slate-900/95 backdrop-blur-3xl rounded-[2.5rem] shadow-2xl border border-indigo-500/30 w-80 animate-in zoom-in-95 duration-200">
+                <div className="absolute z-50 left-0 mt-4 p-6 bg-slate-900/98 backdrop-blur-3xl rounded-[2.5rem] shadow-2xl border border-indigo-500/30 w-80 animate-in zoom-in-95 duration-200">
                     <h4 className="text-sm font-black text-indigo-400 mb-4 uppercase tracking-widest">שמירת יעד חדש</h4>
                     <input 
                         type="text" 
                         value={nickname}
                         onChange={(e) => setNickname(e.target.value)}
-                        placeholder="שם לזיהוי..."
+                        placeholder="שם לזיהוי (למשל: צ'אט הנהלה)"
                         className="w-full text-sm rounded-xl border-white/10 bg-white/5 text-white focus:border-indigo-500 mb-4 h-12 px-4"
                         autoFocus
                     />
@@ -100,7 +101,7 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                             disabled={!nickname.trim()}
                             className="flex-1 bg-indigo-600 text-white text-xs font-black py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 uppercase tracking-widest shadow-[0_0_15px_rgba(79,70,229,0.3)]"
                         >
-                            שמור
+                            שמור יעד
                         </button>
                         <button 
                             onClick={() => setIsSaving(false)}
@@ -132,7 +133,7 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
   const [mode, setMode] = useState<'text' | 'card'>('card');
   const [plainText, setPlainText] = useState('');
   const [cardData, setCardData] = useState({ title: '', subtitle: '', headerImage: '', cardText: '', images: '', actions: '' });
-  const [log, setLog] = useState('מוכן לשליחה');
+  const [log, setLog] = useState('מוכן לשידור');
   const [isSending, setIsSending] = useState(false);
 
   useEffect(() => { localStorage.setItem('last_webhook_url', webhookUrl); }, [webhookUrl]);
@@ -154,16 +155,16 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
   }, [mode, plainText, cardData]);
 
   const handleSend = async () => {
-    if (!webhookUrl.trim() || !payload) return setLog('שגיאה: חסר תוכן או כתובת');
+    if (!webhookUrl.trim() || !payload) return setLog('שגיאה: חסר תוכן או כתובת יעד');
     setIsSending(true);
-    setLog('בשידור...');
+    setLog('משדר הודעה...');
     try {
       const res = await fetch(webhookUrl, { method: 'POST', body: JSON.stringify(payload) });
       if (res.ok) {
-        setLog('שוגר בהצלחה!');
+        setLog('ההודעה שוגרה בהצלחה!');
         saveHistory(payload, webhookUrl);
-      } else setLog(`תקלה: ${res.status}`);
-    } catch { setLog('שגיאת רשת'); }
+      } else setLog(`תקלה בשרת: ${res.status}`);
+    } catch { setLog('שגיאת תקשורת ברשת'); }
     finally { setIsSending(false); }
   };
 
@@ -173,64 +174,64 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
         <div className="flex-1 overflow-y-auto custom-scrollbar pl-4 -ml-4 pr-1 space-y-10 pb-10">
             
             <section>
-               <label className={labelStyles}>יעד ההפצה</label>
+               <label className={labelStyles}>יעד ההפצה (Webhook)</label>
                <WebhookSelector currentUrl={webhookUrl} onSelect={setWebhookUrl} savedWebhooks={savedWebhooks} onAdd={onAddWebhook} onDelete={onDeleteWebhook} />
             </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white/[0.02] p-6 rounded-[2.5rem] border border-white/5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white/[0.02] p-6 rounded-[2.5rem] border border-white/5 shadow-inner">
                <div>
-                  <label className={labelStyles}>סגנון הודעה</label>
+                  <label className={labelStyles}>מבנה ההודעה</label>
                   <select value={mode} onChange={(e) => setMode(e.target.value as any)} className={inputStyles}>
-                     <option value="card" className="bg-slate-900 text-white">כרטיס מעוצב (Card v2)</option>
-                     <option value="text" className="bg-slate-900 text-white">טקסט בלבד</option>
+                     <option value="card" className="bg-slate-900 text-white">כרטיס מעוצב פרימיום</option>
+                     <option value="text" className="bg-slate-900 text-white">טקסט חופשי בלבד</option>
                   </select>
                </div>
-               <div className="flex items-end pb-3 text-slate-500 text-[9px] font-black uppercase tracking-widest italic pr-2">
-                  פורמט: {mode === 'card' ? 'Interactive Card' : 'Plain Text'}
+               <div className="flex items-end pb-3 text-slate-500 text-[9px] font-black uppercase tracking-widest italic pr-2 opacity-60">
+                  פורמט: {mode === 'card' ? 'Interactive Layout' : 'Standard Text'}
                </div>
             </div>
 
             {mode === 'text' ? (
                 <div className="animate-in slide-in-from-bottom-4 duration-500">
-                   <label className={labelStyles}>תוכן חופשי</label>
+                   <label className={labelStyles}>תוכן ההודעה</label>
                    <textarea 
                     value={plainText} 
                     onChange={(e) => setPlainText(e.target.value)} 
                     placeholder="הקלד כאן את ההודעה שלך..." 
-                    className="block w-full rounded-[2.5rem] border-white/5 bg-white/5 shadow-inner focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 min-h-[300px] p-8 text-sm leading-relaxed text-slate-100 placeholder:text-slate-700" 
+                    className="block w-full rounded-[2.5rem] border-white/5 bg-white/5 shadow-inner focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 min-h-[300px] p-8 text-sm leading-relaxed text-slate-100 placeholder:text-slate-700 font-medium" 
                    />
                 </div>
             ) : (
                 <div className="space-y-8 animate-in slide-in-from-bottom-6 duration-700">
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                       <div>
-                        <label className={labelStyles}>כותרת כרטיס</label>
-                        <input type="text" value={cardData.title} onChange={(e) => setCardData({...cardData, title: e.target.value})} className={inputStyles} placeholder="כותרת בולטת..." />
+                        <label className={labelStyles}>כותרת ראשית</label>
+                        <input type="text" value={cardData.title} onChange={(e) => setCardData({...cardData, title: e.target.value})} className={inputStyles} placeholder="למשל: עדכון חשוב..." />
                       </div>
                       <div>
-                        <label className={labelStyles}>תת-כותרת</label>
+                        <label className={labelStyles}>תת-כותרת (סמולר)</label>
                         <input type="text" value={cardData.subtitle} onChange={(e) => setCardData({...cardData, subtitle: e.target.value})} className={inputStyles} placeholder="פירוט קצר..." />
                       </div>
                    </div>
 
                    <div>
-                      <label className={labelStyles}>באנר עליון (URL)</label>
+                      <label className={labelStyles}>תמונת כותרת (קישור URL)</label>
                       <input type="text" value={cardData.headerImage} onChange={(e) => setCardData({...cardData, headerImage: e.target.value})} className={inputStyles} placeholder="https://..." />
                    </div>
 
                    <div className="bg-white/[0.03] rounded-[3rem] p-8 border border-white/5 space-y-8 shadow-inner">
                       <div>
-                        <label className={labelStyles}>גוף ההודעה (Text Paragraph)</label>
-                        <textarea value={cardData.cardText} onChange={(e) => setCardData({...cardData, cardText: e.target.value})} className="block w-full rounded-[2rem] border-white/5 bg-slate-950/40 focus:border-indigo-500/30 focus:ring-0 min-h-[140px] p-6 text-sm text-slate-200 placeholder:text-slate-800" placeholder="כאן כותבים את הסיפור..." />
+                        <label className={labelStyles}>גוף ההודעה</label>
+                        <textarea value={cardData.cardText} onChange={(e) => setCardData({...cardData, cardText: e.target.value})} className="block w-full rounded-[2rem] border-white/5 bg-slate-950/40 focus:border-indigo-500/30 focus:ring-0 min-h-[140px] p-6 text-sm text-slate-200 placeholder:text-slate-800 leading-relaxed font-medium" placeholder="כתבו כאן את תוכן ההודעה..." />
                       </div>
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                          <div>
-                            <label className={labelStyles}>תמונות גלריה (אחת לשורה)</label>
+                            <label className={labelStyles}>גלריית תמונות (קישור בשורה)</label>
                             <textarea value={cardData.images} onChange={(e) => setCardData({...cardData, images: e.target.value})} className="block w-full rounded-2xl border-white/5 bg-slate-950/40 focus:border-indigo-500/30 h-28 p-4 text-[10px] font-mono text-indigo-400 placeholder:text-slate-800" placeholder="https://..." />
                          </div>
                          <div>
-                            <label className={labelStyles}>כפתורי פעולה (טקסט|קישור)</label>
-                            <textarea value={cardData.actions} onChange={(e) => setCardData({...cardData, actions: e.target.value})} className="block w-full rounded-2xl border-white/5 bg-slate-950/40 focus:border-indigo-500/30 h-28 p-4 text-[10px] font-mono text-teal-400 placeholder:text-slate-800" placeholder="לפרטים|https://..." />
+                            <label className={labelStyles}>כפתורי פעולה (שם|קישור)</label>
+                            <textarea value={cardData.actions} onChange={(e) => setCardData({...cardData, actions: e.target.value})} className="block w-full rounded-2xl border-white/5 bg-slate-950/40 focus:border-indigo-500/30 h-28 p-4 text-[10px] font-mono text-teal-400 placeholder:text-slate-800" placeholder="לאתר|https://..." />
                          </div>
                       </div>
                    </div>
@@ -240,25 +241,25 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
             <div className="pt-6">
                <div className="flex items-center gap-6 mb-6">
                   <div className="h-px bg-white/5 flex-1" />
-                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.4em]">Preview Layer</span>
+                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.4em]">תצוגה מקדימה חיה</span>
                   <div className="h-px bg-white/5 flex-1" />
                </div>
-               <div className="bg-slate-950/40 rounded-[3rem] border-2 border-dashed border-white/5 p-8 flex items-center justify-center min-h-[250px] shadow-inner">
+               <div className="bg-slate-950/60 rounded-[3rem] border-2 border-dashed border-white/5 p-8 flex items-center justify-center min-h-[250px] shadow-inner relative overflow-hidden">
                   {payload ? (
-                    <div className="w-full max-w-xl animate-in zoom-in-95 duration-500">
+                    <div className="w-full max-w-xl animate-in zoom-in-95 duration-500 relative z-10">
                        {mode === 'text' ? (
-                          <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl border border-white/5 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{plainText || 'ההודעה תופיע כאן...'}</div>
+                          <div className="bg-slate-900/80 backdrop-blur-md p-8 rounded-[2.5rem] shadow-2xl border border-white/10 whitespace-pre-wrap text-sm leading-relaxed text-slate-300 font-medium">{plainText || 'ההודעה תופיע כאן...'}</div>
                        ) : (
-                          <div className="bg-slate-900 rounded-[2.5rem] shadow-2xl border border-white/5 overflow-hidden">
+                          <div className="bg-slate-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden">
                              {(cardData.title || cardData.subtitle) && (
                                 <div className="p-6 border-b border-white/5 bg-white/5">
                                    <h3 className="font-black text-xl text-white tracking-tight leading-tight">{cardData.title}</h3>
-                                   <p className="text-[11px] text-indigo-400 font-black uppercase tracking-widest mt-1">{cardData.subtitle}</p>
+                                   <p className="text-[11px] text-indigo-400 font-black uppercase tracking-widest mt-1.5">{cardData.subtitle}</p>
                                 </div>
                              )}
                              {cardData.headerImage && <img src={githubBlobToRaw(cardData.headerImage)} className="w-full object-cover max-h-56" />}
                              <div className="p-8 space-y-6">
-                                {cardData.cardText && <p className="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap">{cardData.cardText}</p>}
+                                {cardData.cardText && <p className="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap font-medium">{cardData.cardText}</p>}
                                 {cardData.images.split('\n').filter(Boolean).map((img, i) => (
                                    <img key={i} src={githubBlobToRaw(img)} className="w-full rounded-3xl shadow-lg border border-white/5" />
                                 ))}
@@ -272,7 +273,7 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
                        )}
                     </div>
                   ) : (
-                    <div className="text-slate-700 text-sm font-black uppercase tracking-widest animate-pulse">Waiting for content...</div>
+                    <div className="text-slate-800 text-sm font-black uppercase tracking-widest animate-pulse italic">ממתין לתוכן...</div>
                   )}
                </div>
             </div>
@@ -280,13 +281,13 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
 
         <footer className="pt-8 border-t border-white/5 mt-auto flex flex-col sm:flex-row justify-between items-center gap-8">
             <div className="flex items-center gap-4 bg-white/5 rounded-2xl p-4 px-6 text-[10px] font-black uppercase tracking-widest text-indigo-400 border border-white/5 flex-1 shadow-inner">
-               <div className={`w-2 h-2 rounded-full ${isSending ? 'bg-amber-500 animate-ping' : 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]'}`} />
-               {log}
+               <div className={`w-2.5 h-2.5 rounded-full ${isSending ? 'bg-amber-500 animate-ping' : 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.9)]'}`} />
+               <span className="mt-0.5">{log}</span>
             </div>
             <button 
                 onClick={handleSend}
                 disabled={!payload || isSending}
-                className="w-full sm:w-auto h-16 px-14 bg-indigo-600 text-white rounded-2xl font-black text-xl shadow-[0_15px_35px_rgba(79,70,229,0.4)] hover:bg-indigo-500 hover:scale-[1.02] hover:-translate-y-1 active:scale-95 transition-all duration-300 flex items-center justify-center gap-4 disabled:bg-slate-800 disabled:shadow-none disabled:scale-100 disabled:text-slate-600 uppercase tracking-tighter"
+                className="w-full sm:w-auto h-16 px-14 bg-indigo-600 text-white rounded-2xl font-black text-xl shadow-[0_15px_35px_rgba(79,70,229,0.4)] hover:bg-indigo-500 hover:scale-[1.02] hover:-translate-y-1 active:scale-95 transition-all duration-300 flex items-center justify-center gap-4 disabled:bg-slate-900 disabled:shadow-none disabled:scale-100 disabled:text-slate-700 uppercase tracking-tighter border border-white/10"
             >
                 {isSending ? (
                     <div className="animate-spin h-6 w-6 border-2 border-white/30 border-t-white rounded-full" />
