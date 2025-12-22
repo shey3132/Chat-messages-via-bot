@@ -12,7 +12,7 @@ type ActiveApp = 'chatSender' | 'otherApp';
 type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const STORAGE_PREFIX = 'ch_v14_';
+const STORAGE_PREFIX = 'ch_v15_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -26,9 +26,16 @@ export default function App() {
   
   const lastCloudDataHash = useRef<string>("");
 
-  // משיכת נתונים - רק אם יש מפתח
+  // פונקציית עזר לבדיקה אם מפתח הוא תקין (ולא קוד גיבוי ארוך)
+  const isValidId = (id: string | null) => {
+    if (!id || id === 'null') return false;
+    if (id.length > 30) return false; // מפתח npoint הוא בד"כ 20 תווים
+    if (id.includes('%') || id.includes('{') || id.includes('=')) return false;
+    return true;
+  };
+
   const fetchCloudData = useCallback(async (id: string) => {
-    if (!id || id === 'null' || id.length < 5) return;
+    if (!isValidId(id)) return;
     setSyncStatus('syncing');
     try {
       const response = await fetch(`${DATA_PROVIDER}${id}`);
@@ -40,15 +47,15 @@ export default function App() {
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
         }
-      } else if (response.status === 404) {
+      } else if (response.status === 404 || response.status >= 500) {
         setSyncStatus('no_key');
+        if (response.status >= 500) setCloudId(null); // מפתח שבור
       }
     } catch (e) {
       setSyncStatus('local');
     }
   }, []);
 
-  // שמירה לענן - v14 (ללא Headers לעקיפת נטפרי)
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
     if (!isReady || !user) return;
     
@@ -59,17 +66,18 @@ export default function App() {
     setSyncStatus('syncing');
     
     try {
-      const url = cloudId ? `${DATA_PROVIDER}${cloudId}` : DATA_PROVIDER;
+      const isExisting = isValidId(cloudId);
+      const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : DATA_PROVIDER;
       
       const response = await fetch(url, {
         method: 'POST',
-        // שולחים כטקסט נקי כדי שנטפרי לא יזהה את זה כ-API מורכב
+        headers: { 'Content-Type': 'application/json' },
         body: currentHash
       });
 
       if (response.ok) {
         const resData = await response.json();
-        if (!cloudId && resData.id) {
+        if (!isExisting && resData.id) {
           const newId = resData.id;
           setCloudId(newId);
           localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
@@ -77,6 +85,9 @@ export default function App() {
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
       } else {
+        if (response.status >= 500) {
+             setCloudId(null); // אם השרת קרס על המפתח הזה, נאפס אותו
+        }
         setSyncStatus('local');
       }
     } catch (e) {
@@ -84,7 +95,6 @@ export default function App() {
     }
   }, [isReady, user, cloudId]);
 
-  // טעינה ראשונית
   useEffect(() => {
     const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
@@ -97,9 +107,9 @@ export default function App() {
       const parsed = JSON.parse(localUser);
       setUser(parsed);
       const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`);
-      if (savedId) {
+      if (isValidId(savedId)) {
         setCloudId(savedId);
-        fetchCloudData(savedId);
+        fetchCloudData(savedId!);
       } else {
         setSyncStatus('no_key');
       }
@@ -110,17 +120,14 @@ export default function App() {
     }
   }, [fetchCloudData]);
 
-  // שמירה אוטומטית
   useEffect(() => {
     if (!user || !isReady) return;
-
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
     }, 5000);
 
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
-
     return () => clearTimeout(timer);
   }, [history, savedWebhooks, user, saveToCloud, isReady]);
 
@@ -131,9 +138,9 @@ export default function App() {
     setIsAuthOpen(false);
     
     const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
-    if (savedId) {
+    if (isValidId(savedId)) {
       setCloudId(savedId);
-      fetchCloudData(savedId);
+      fetchCloudData(savedId!);
     } else {
       setSyncStatus('no_key');
     }
@@ -152,21 +159,20 @@ export default function App() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100" dir="rtl">
       <div className="max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-10 h-screen flex flex-col gap-6">
         
-        {/* Navbar */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/60 backdrop-blur-xl p-2 rounded-[2rem] border border-white shadow-xl shadow-slate-200/50">
           <div className="flex items-center gap-2 p-1">
             <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>משגר הודעות</TabButton>
             <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>מחולל סקרים</TabButton>
           </div>
           
-          <div className="px-6">
+          <div className="px-6 flex items-center gap-3">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 syncStatus === 'success' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
              }`}>
                 <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-amber-400'}`} />
-                {syncStatus === 'syncing' ? 'מסנכרן...' : 
-                 syncStatus === 'no_key' ? 'ממתין להגדרה' : 
-                 syncStatus === 'success' ? 'ענן פעיל' : 'מצב מקומי'}
+                {syncStatus === 'syncing' ? 'בתקשורת...' : 
+                 syncStatus === 'no_key' ? 'ממתין לסנכרון' : 
+                 syncStatus === 'success' ? 'ענן מחובר' : 'מצב מקומי'}
              </div>
           </div>
         </div>
@@ -213,6 +219,11 @@ export default function App() {
                 setCloudId(id);
                 if (user) localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
                 fetchCloudData(id);
+              }}
+              onResetCloud={() => {
+                  setCloudId(null);
+                  if (user) localStorage.removeItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`);
+                  setSyncStatus('no_key');
               }}
             />
           </div>
