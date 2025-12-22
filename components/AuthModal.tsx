@@ -59,7 +59,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           google.accounts.id.renderButton(btnContainer, {
             theme: "outline",
             size: "large",
-            width: btnContainer.offsetWidth || 320,
+            width: 280, // שימוש ברוחב קבוע למניעת שבירה
             text: "continue_with",
             shape: "pill",
             logo_alignment: "left"
@@ -95,14 +95,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           </div>
         )}
 
-        <div className="flex flex-col items-center justify-center min-h-[80px]">
+        {/* מיכל הלחצן - הוספתי dir="ltr" ורוחב מוגדר כדי להבטיח מירכוז מושלם */}
+        <div className="flex flex-col items-center justify-center min-h-[80px]" dir="ltr">
           {loading ? (
             <div className="flex flex-col items-center gap-3">
               <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">מתחבר ומסנכרן...</p>
+              <p className="text-xs font-black text-indigo-600 uppercase tracking-widest" dir="rtl">מתחבר ומסנכרן...</p>
             </div>
           ) : (
-            <div id="googleBtn" className="w-full max-w-xs h-[50px] transform hover:scale-[1.02] transition-transform"></div>
+            <div id="googleBtn" className="flex justify-center w-full max-w-[280px] transform hover:scale-[1.02] transition-transform"></div>
           )}
         </div>
 
