@@ -3,30 +3,17 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import GoogleChatSender from './views/GoogleChatSender';
 import OtherApp from './views/OtherApp';
-import { HistoryItem, ChatMessagePayload, SavedWebhook, UserDataContainer } from './types';
+import { HistoryItem, SavedWebhook, UserDataContainer } from './types';
 import TabButton from './components/TabButton';
 import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const STORAGE_PREFIX = 'ch_v16_';
-
-// עזרי עוגיות לנטפרי
-const setCookie = (name: string, value: string) => {
-  const date = new Date();
-  date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
-  document.cookie = `${name}=${value};expires=${date.toUTCString()};path=/;SameSite=Lax`;
-};
-
-const getCookie = (name: string) => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift();
-  return null;
-};
+const DISCOVERY_HUB_ID = 'dc830c11516e87a20c9a'; // מרכזיית הזיהוי (Discovery Hub)
+const STORAGE_PREFIX = 'ch_v19_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -45,46 +32,80 @@ export default function App() {
     return /^[a-z0-9]+$/i.test(id);
   };
 
+  // משיכת נתונים מהענן
   const fetchCloudData = useCallback(async (id: string) => {
     if (!isValidId(id)) return;
     setSyncStatus('syncing');
     try {
-      // בנטפרי - עדיף לפעמים בלי Headers בכלל כדי למנוע Preflight
       const response = await fetch(`${DATA_PROVIDER}${id}`);
       if (response.ok) {
         const data: UserDataContainer = await response.json();
-        if (data && (data.history || data.webhooks)) {
+        if (data && (Array.isArray(data.history) || Array.isArray(data.webhooks))) {
           setHistory(data.history || []);
           setSavedWebhooks(data.webhooks || []);
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
-          // נשמור גם בעוגייה ליתר ביטחון
-          if (user) setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
         }
-      } else {
-        setSyncStatus('local');
       }
     } catch (e) {
       setSyncStatus('local');
     }
-  }, [user]);
+  }, []);
+
+  // חיפוש אוטומטי של קישור לענן לפי מזהה המשתמש
+  const discoverUserCloud = useCallback(async (syncKey: string) => {
+    setSyncStatus('discovering');
+    try {
+      const response = await fetch(`${DATA_PROVIDER}${DISCOVERY_HUB_ID}`);
+      if (response.ok) {
+        const hub: Record<string, string> = await response.json();
+        const foundId = hub[syncKey];
+        if (foundId && isValidId(foundId)) {
+          setCloudId(foundId);
+          localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`, foundId);
+          await fetchCloudData(foundId);
+          return foundId;
+        }
+      }
+    } catch (e) {
+      console.error("Discovery error", e);
+    }
+    setSyncStatus('no_key');
+    return null;
+  }, [fetchCloudData]);
+
+  // רישום המשתמש במרכזיה (פעם אחת בלבד כשנוצר ענן חדש)
+  const registerInHub = async (syncKey: string, newCloudId: string) => {
+    try {
+      const hubRes = await fetch(`${DATA_PROVIDER}${DISCOVERY_HUB_ID}`);
+      let hub: Record<string, string> = {};
+      if (hubRes.ok) hub = await hubRes.ok ? await hubRes.json() : {};
+      
+      if (hub[syncKey] === newCloudId) return;
+
+      hub[syncKey] = newCloudId;
+      await fetch(`${DATA_PROVIDER}${DISCOVERY_HUB_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(hub)
+      });
+    } catch (e) {}
+  };
 
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
     if (!isReady || !user) return;
-    
     const currentHash = JSON.stringify(data);
     if (currentHash === lastCloudDataHash.current) return;
     if (data.history.length === 0 && data.webhooks.length === 0) return;
 
     setSyncStatus('syncing');
-    
     try {
       const isExisting = isValidId(cloudId);
       const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : DATA_PROVIDER;
       
-      // שליחה כטקסט נקי (Simple Request) - עוקף בעיות CORS בנטפרי
       const response = await fetch(url, {
         method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
         body: currentHash
       });
 
@@ -94,12 +115,10 @@ export default function App() {
           const newId = resData.id;
           setCloudId(newId);
           localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
-          setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
+          await registerInHub(user.syncKey, newId);
         }
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
-      } else {
-        setSyncStatus('local');
       }
     } catch (e) {
       setSyncStatus('local');
@@ -117,62 +136,52 @@ export default function App() {
     if (localUser) {
       const parsed = JSON.parse(localUser);
       setUser(parsed);
-      
-      // ננסה להביא את ה-ID מהלוקאל או מהעוגייה
-      const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`) || 
-                      getCookie(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`);
-      
-      if (isValidId(savedId || null)) {
+      const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`);
+      if (isValidId(savedId)) {
         setCloudId(savedId!);
         fetchCloudData(savedId!);
       } else {
-        setSyncStatus('no_key');
+        discoverUserCloud(parsed.syncKey);
       }
       setIsReady(true);
     } else {
       setIsAuthOpen(true);
       setIsReady(true);
     }
-  }, [fetchCloudData]);
+  }, [fetchCloudData, discoverUserCloud]);
 
   useEffect(() => {
     if (!user || !isReady) return;
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
-    }, 5000);
-
+    }, 2500);
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
     return () => clearTimeout(timer);
   }, [history, savedWebhooks, user, saveToCloud, isReady]);
 
-  const handleLogin = (username: string, syncKey: string, avatar?: string) => {
+  const handleLogin = async (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
     setIsAuthOpen(false);
     
-    const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`) || 
-                    getCookie(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
-    
-    if (isValidId(savedId || null)) {
+    const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
+    if (isValidId(savedId)) {
       setCloudId(savedId!);
       fetchCloudData(savedId!);
     } else {
-      setSyncStatus('no_key');
+      await discoverUserCloud(syncKey);
     }
   };
 
   const handleLogout = () => {
+    if (!confirm('האם להתנתק? המידע יימחק מהמחשב הזה אך יישאר בענן.')) return;
     setUser(null);
     setCloudId(null);
     setHistory([]);
     setSavedWebhooks([]);
     localStorage.clear();
-    // מחיקת עוגיות
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
     setIsAuthOpen(true);
   };
 
@@ -186,14 +195,14 @@ export default function App() {
             <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>מחולל סקרים</TabButton>
           </div>
           
-          <div className="px-6 flex items-center gap-3">
+          <div className="px-6 flex items-center gap-4">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                syncStatus === 'success' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-amber-400'}`} />
-                {syncStatus === 'syncing' ? 'בתקשורת...' : 
-                 syncStatus === 'no_key' ? 'ממתין לסנכרון' : 
-                 syncStatus === 'success' ? 'ענן פעיל' : 'מצב מקומי'}
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-amber-400'}`} />
+                {syncStatus === 'discovering' ? 'מחפש גיבוי ענן...' :
+                 syncStatus === 'syncing' ? 'מעדכן ענן...' : 
+                 syncStatus === 'success' ? 'סנכרון אוטומטי פעיל' : 'מצב מקומי'}
              </div>
           </div>
         </div>
@@ -238,20 +247,9 @@ export default function App() {
               }}
               onSetCloudId={(id) => {
                 setCloudId(id);
-                if (user) {
-                  localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
-                  setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
-                }
                 fetchCloudData(id);
               }}
-              onResetCloud={() => {
-                  setCloudId(null);
-                  if (user) {
-                    localStorage.removeItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`);
-                    setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, "");
-                  }
-                  setSyncStatus('no_key');
-              }}
+              onResetCloud={() => setCloudId(null)}
             />
           </div>
         </div>

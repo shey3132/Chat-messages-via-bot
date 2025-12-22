@@ -17,14 +17,7 @@ interface HistorySidebarProps {
 }
 
 const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks = [], cloudId, onLogout, onImport, onSetCloudId, onResetCloud }: HistorySidebarProps) => {
-  const [isCloudOpen, setIsCloudOpen] = useState(!cloudId);
-
-  const generateSyncCode = () => {
-    const data: UserDataContainer = { history, webhooks: savedWebhooks };
-    try {
-        return btoa(encodeURIComponent(JSON.stringify(data)));
-    } catch (e) { return ""; }
-  };
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
     <aside className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-6 shadow-2xl shadow-slate-200/40 flex flex-col h-full max-h-[calc(100vh-10rem)] border border-white overflow-hidden">
@@ -40,68 +33,45 @@ const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks =
           </div>
           <div className="flex-1 text-right order-1 px-3">
             <h4 className="text-lg font-bold truncate leading-tight">{username || 'אורח'}</h4>
-            <button onClick={() => setIsCloudOpen(!isCloudOpen)} className="flex items-center gap-1.5 mt-1">
-              <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'success' ? 'bg-green-400' : 'bg-amber-400 animate-pulse'}`} />
-              <p className="text-[10px] font-black opacity-80 uppercase tracking-widest hover:underline">
-                {syncStatus === 'success' ? 'סנכרון פעיל' : 'הגדרת ענן'}
-              </p>
-            </button>
+            <div className="flex items-center gap-2 mt-1">
+                <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'success' ? 'bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)]' : 'bg-amber-400 animate-pulse'}`} />
+                <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">
+                  {syncStatus === 'success' ? 'מגובה אוטומטית' : 'מסנכרן...'}
+                </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Cloud Management Area */}
-      {isCloudOpen && (
-        <div className="mb-6 space-y-3 animate-in slide-in-from-top-2 duration-300">
-            <div className="p-5 bg-slate-900 rounded-[2rem] text-white shadow-xl">
-                <h5 className="text-[10px] font-black text-indigo-400 uppercase mb-3 text-center tracking-widest italic">מפתח ענן (סנכרון אוטומטי)</h5>
-                
-                {!cloudId ? (
-                    <div className="space-y-3">
-                        <p className="text-[10px] leading-relaxed opacity-60 text-center">כדי לסנכרן אוטומטית בין מחשבים, שלח הודעה ראשונה או הזן מפתח ממחשב אחר.</p>
-                        <button 
-                            onClick={() => {
-                                const id = prompt('הכנס מפתח ענן (למשל: abc123def):');
-                                if (id) {
-                                    if (id.length > 30) alert('נראה שהכנסת קוד גיבוי במקום מפתח ענן. נא להכניס את המפתח הקצר.');
-                                    else onSetCloudId(id.trim());
-                                }
-                            }}
-                            className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-[11px] font-black hover:bg-indigo-700 transition-all shadow-lg"
-                        >
-                            הזן מפתח קיים
-                        </button>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        <div className="bg-white/5 p-3 rounded-xl border border-white/10 flex items-center justify-between">
-                            <span className="text-[11px] font-mono font-bold text-indigo-300">{cloudId}</span>
-                            <button onClick={() => { navigator.clipboard.writeText(cloudId); alert('המפתח הועתק!'); }} className="text-[9px] bg-white/10 px-2 py-1 rounded-lg hover:bg-white/20 transition-colors">העתק</button>
-                        </div>
-                        <button 
-                            onClick={() => { if(confirm('האם לאפס את חיבור הענן? המידע יישאר מקומי.')) onResetCloud(); }}
-                            className="w-full py-2 border border-red-500/30 text-red-400 rounded-xl text-[9px] font-black hover:bg-red-500 hover:text-white transition-all"
-                        >
-                            אפס חיבור ענן
-                        </button>
-                    </div>
-                )}
-            </div>
+      <button 
+        onClick={() => setShowAdvanced(!showAdvanced)} 
+        className="mb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors text-center block w-full"
+      >
+        {showAdvanced ? 'הסתר הגדרות ענן' : 'הגדרות סנכרון מתקדמות'}
+      </button>
+
+      {/* Advanced Cloud Management */}
+      {showAdvanced && (
+        <div className="mb-6 space-y-3 animate-in slide-in-from-top-2 duration-300 p-4 bg-slate-50 rounded-[1.8rem] border border-slate-100">
+            <div className="text-[10px] font-bold text-slate-500 mb-2">מזהה ענן נוכחי:</div>
+            <div className="bg-white p-2 rounded-lg border border-slate-200 text-[10px] font-mono truncate text-indigo-600 mb-4">{cloudId || 'לא נוצר עדיין'}</div>
             
-            <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-[1.8rem]">
-                <span className="text-[9px] font-black text-indigo-400 uppercase block mb-2 text-center">גיבוי ידני בקוד</span>
-                <div className="flex gap-2">
-                    <button onClick={() => { navigator.clipboard.writeText(generateSyncCode()); alert('קוד גיבוי מלא הועתק!'); }} className="flex-1 py-2 bg-white text-indigo-600 rounded-lg text-[10px] font-bold border border-indigo-100 shadow-sm">העתק קוד</button>
-                    <button onClick={() => {
-                        const code = prompt('הדבק קוד גיבוי:');
-                        if (code) {
-                            try {
-                                const decoded = JSON.parse(decodeURIComponent(atob(code)));
-                                onImport(decoded);
-                            } catch(e) { alert('קוד לא תקין'); }
-                        }
-                    }} className="flex-1 py-2 bg-white text-slate-500 rounded-lg text-[10px] font-bold border border-slate-200 shadow-sm">ייבוא קוד</button>
-                </div>
+            <div className="grid grid-cols-2 gap-2">
+                <button 
+                    onClick={() => {
+                        const id = prompt('הכנס מפתח ענן ידני:');
+                        if (id) onSetCloudId(id);
+                    }}
+                    className="py-2 bg-white text-indigo-600 rounded-lg text-[9px] font-black border border-indigo-100 hover:bg-indigo-50"
+                >
+                    ייבוא ידני
+                </button>
+                <button 
+                    onClick={() => { if(confirm('לאפס חיבור ענן?')) onResetCloud(); }}
+                    className="py-2 bg-white text-red-500 rounded-lg text-[9px] font-black border border-red-100 hover:bg-red-50"
+                >
+                    ניתוק מזהה
+                </button>
             </div>
         </div>
       )}

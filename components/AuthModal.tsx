@@ -11,10 +11,10 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [status, setStatus] = useState('ממתין להתחברות...');
 
   const generateSyncKey = async (googleSubId: string) => {
-    const salt = "chathub_v10_netfree_immune";
+    const salt = "chathub_v19_automatic_sync";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -29,9 +29,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
       }).join(''));
       return JSON.parse(jsonPayload);
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   };
 
   useEffect(() => {
@@ -41,13 +39,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           client_id: GOOGLE_CLIENT_ID,
           callback: async (response: any) => {
             setLoading(true);
+            setStatus('מאמת נתונים...');
             const userData = decodeJWT(response.credential);
             if (userData && userData.sub) {
               const syncKey = await generateSyncKey(userData.sub);
-              onLogin(userData.name || "משתמש", syncKey, userData.picture);
+              setStatus('מחבר אותך לענן האישי...');
+              // נותן למערכת רגע להראות את הסטטוס
+              setTimeout(() => {
+                onLogin(userData.name || "משתמש", syncKey, userData.picture);
+              }, 800);
             } else {
-              setError('שגיאה בזיהוי המשתמש.');
               setLoading(false);
+              alert('שגיאה בהתחברות.');
             }
           },
         });
@@ -71,19 +74,28 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-black text-slate-900 italic">ברוכים הבאים</h2>
-          <p className="text-slate-500 mt-2 text-sm">סנכרון חסין נטפרי v10</p>
-          <div className="mt-5 p-4 bg-amber-50 rounded-2xl text-[11px] text-amber-800 font-bold leading-relaxed border border-amber-100">
-            אם הסינון חוסם את הגיבוי האוטומטי, תוכלו להשתמש ב-"קוד סנכרון" בתפריט הצדדי כדי להעביר את הנתונים ידנית בין מחשבים.
+          <h2 className="text-2xl font-black text-slate-900 italic">ChatHub Sync</h2>
+          <p className="text-slate-500 mt-2 text-sm font-bold">סנכרון אוטומטי מלא v19</p>
+          
+          <div className="mt-6 p-4 bg-indigo-50 rounded-2xl text-[11px] text-indigo-800 font-bold leading-relaxed border border-indigo-100 flex items-center gap-3">
+             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+             </div>
+             <p className="text-right">ההיסטוריה והוובוקים שלך יחכו לך בכל מחשב שבו תתחבר עם אותו חשבון.</p>
           </div>
         </div>
+        
         <div className="flex justify-center min-h-[60px]" dir="ltr">
           {loading ? (
             <div className="flex flex-col items-center gap-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                <span className="text-[10px] text-slate-400 font-black uppercase">מאמת נתונים...</span>
+                <span className="text-[10px] text-indigo-600 font-black uppercase tracking-widest">{status}</span>
             </div>
           ) : <div id="googleBtn"></div>}
+        </div>
+        
+        <div className="mt-8 text-center">
+            <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">חסין לסינוני נטפרי ורימון</p>
         </div>
       </div>
     </div>
