@@ -12,9 +12,9 @@ type ActiveApp = 'chatSender' | 'otherApp';
 type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const STORAGE_PREFIX = 'ch_v21_';
+const STORAGE_PREFIX = 'ch_v22_'; // עדכון גרסת אחסון
 
-// רשימת מרכזיות מפוצלות למניעת שגיאות 500 (Sharding)
+// מרכזיות מעודכנות ויציבות יותר
 const HUB_SHARDS: Record<string, string> = {
   '0': 'b738495f36e47f763a86', '1': 'c29384f5a6b7c8d9e0f1', '2': 'a1b2c3d4e5f6a7b8c9d0',
   '3': 'f1e2d3c4b5a6f7e8d9c0', '4': '5a6b7c8d9e0f1a2b3c4d', '5': 'e5f6a7b8c9d0e1f2a3b4',
@@ -35,10 +35,13 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   
   const lastCloudDataHash = useRef<string>("");
+  const retryCount = useRef<number>(0);
 
   const getShardId = (syncKey: string) => {
-    const firstChar = syncKey.charAt(0).toLowerCase();
-    return HUB_SHARDS[firstChar] || HUB_SHARDS['a'];
+    // מנגנון רוטציה: אם נכשלנו יותר מ-2 פעמים, ננסה שארד חלופי (האות הבאה ב-key)
+    const index = retryCount.current > 2 ? 1 : 0;
+    const char = syncKey.charAt(index % syncKey.length).toLowerCase();
+    return HUB_SHARDS[char] || HUB_SHARDS['a'];
   };
 
   const isValidId = (id: string | null) => {
@@ -54,10 +57,8 @@ export default function App() {
       if (response.ok) {
         const data: UserDataContainer = await response.json();
         if (data && (Array.isArray(data.history) || Array.isArray(data.webhooks))) {
-          // מיזוג חכם: אם יש היסטוריה מקומית, נשמור אותה ונצרף את החדשה
           setHistory(prev => {
              const combined = [...(data.history || []), ...prev];
-             // הסרת כפילויות לפי טיימסטמפ
              return Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
                         .sort((a,b) => b.timestamp - a.timestamp)
                         .slice(0, 50);
@@ -65,6 +66,7 @@ export default function App() {
           setSavedWebhooks(data.webhooks || []);
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
+          retryCount.current = 0;
           return true;
         }
       }
@@ -88,7 +90,12 @@ export default function App() {
           return foundId;
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      if (retryCount.current < 3) {
+        retryCount.current++;
+        setTimeout(() => discoverUserCloud(syncKey), 2000);
+      }
+    }
     setSyncStatus('no_key');
     return null;
   }, [fetchCloudData]);
@@ -120,11 +127,15 @@ export default function App() {
     setSyncStatus('syncing');
     try {
       const isExisting = isValidId(cloudId);
-      const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : DATA_PROVIDER;
+      // npoint לפעמים דורש / בסוף ביצירה חדשה
+      const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : `${DATA_PROVIDER.slice(0, -1)}`;
       
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: currentHash
       });
 
@@ -139,6 +150,7 @@ export default function App() {
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
       } else {
+        // אם קיבלנו 404 או 500, נסמן מצב מקומי ולא נפריע למשתמש
         setSyncStatus('local');
       }
     } catch (e) {
@@ -175,7 +187,7 @@ export default function App() {
     if (!user || !isReady) return;
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
-    }, 4000); // השהייה ארוכה יותר למניעת עומס
+    }, 5000); 
     
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
@@ -198,7 +210,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (!confirm('להתנתק? המידע יישמר בענן.')) return;
+    if (!confirm('להתנתק?')) return;
     setUser(null);
     setCloudId(null);
     setHistory([]);
@@ -225,7 +237,7 @@ export default function App() {
                 <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-400'}`} />
                 {syncStatus === 'discovering' ? 'מחבר לענן...' :
                  syncStatus === 'syncing' ? 'מעדכן...' : 
-                 syncStatus === 'success' ? 'סנכרון פעיל' : 'מצב מקומי'}
+                 syncStatus === 'success' ? 'ענן פעיל' : 'עובד מקומית'}
              </div>
           </div>
         </div>

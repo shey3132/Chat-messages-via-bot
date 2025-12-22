@@ -14,8 +14,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [status, setStatus] = useState('ממתין להתחברות...');
 
   const generateSyncKey = async (googleSubId: string) => {
-    // השתמשנו במלח קבוע לכל המכשירים כדי שהמפתח יהיה זהה
-    const salt = "chathub_v20_universal_key";
+    const salt = "chathub_v22_universal_key";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -44,7 +43,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
             const userData = decodeJWT(response.credential);
             if (userData && userData.sub) {
               const syncKey = await generateSyncKey(userData.sub);
-              setStatus('מסנכרן היסטוריה מהענן...');
+              setStatus('מסנכרן הגדרות...');
               setTimeout(() => {
                 onLogin(userData.name || "משתמש", syncKey, userData.picture);
               }, 500);
@@ -74,14 +73,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-black text-slate-900 italic tracking-tight">ChatHub v20</h2>
-          <p className="text-slate-500 mt-2 text-sm font-bold uppercase tracking-widest opacity-60">סנכרון ענן אוטומטי</p>
+          <h2 className="text-2xl font-black text-slate-900 italic tracking-tight">ChatHub v22</h2>
+          <p className="text-slate-500 mt-2 text-sm font-bold uppercase tracking-widest opacity-60">CLOUD RESILIENCE MODE</p>
           
           <div className="mt-6 p-5 bg-indigo-50 rounded-[1.8rem] text-[11px] text-indigo-800 font-bold leading-relaxed border border-indigo-100 flex items-center gap-4">
              <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0 border border-indigo-100">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
              </div>
-             <p className="text-right">התחבר פעם אחת, וההיסטוריה שלך תעקוב אחריך לכל מחשב באופן אוטומטי לחלוטין.</p>
+             <p className="text-right">התחבר פעם אחת, וההיסטוריה שלך תעקוב אחריך לכל מחשב באופן אוטומטי. גרסה זו כוללת תיקוני יציבות לעקיפת עומסי שרת.</p>
           </div>
         </div>
         
@@ -90,9 +89,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
             <div className="flex flex-col items-center gap-4">
                 <div className="relative">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse"></div>
-                    </div>
                 </div>
                 <span className="text-[10px] text-indigo-600 font-black uppercase tracking-[0.2em]">{status}</span>
             </div>
@@ -102,7 +98,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         <div className="mt-8 text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">חסין לסינון נטפרי</p>
+                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">נקי ומהיר לסינון נטפרי</p>
             </div>
         </div>
       </div>
