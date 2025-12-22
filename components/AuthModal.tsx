@@ -47,7 +47,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
             const userData = decodeJWT(response.credential);
             if (userData) {
               const syncKey = await generateSyncKey(userData.sub);
-              onLogin(userData.given_name || userData.name, syncKey, userData.picture);
+              // שימוש ב-userData.name כדי לקבל שם מלא (פרטי + משפחה)
+              onLogin(userData.name || userData.given_name || "משתמש", syncKey, userData.picture);
             } else {
               setError('לא הצלחנו לאמת את חשבון הגוגל שלך.');
               setLoading(false);

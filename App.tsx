@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import GoogleChatSender from './views/GoogleChatSender';
 import OtherApp from './views/OtherApp';
@@ -19,8 +19,12 @@ export default function App() {
   const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
+  
+  // Fix: Use ReturnType<typeof setTimeout> instead of NodeJS.Timeout to avoid namespace error in browser environment
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstLoad = useRef(true);
 
-  // טעינה ראשונית מ-LocalStorage
+  // 1. טעינה ראשונית מ-LocalStorage
   useEffect(() => {
     const savedUser = localStorage.getItem('chathub_user');
     const storedHistory = localStorage.getItem('chatHistory');
@@ -32,28 +36,7 @@ export default function App() {
     else setIsAuthOpen(true);
   }, []);
 
-  // סנכרון אוטומטי ל-LocalStorage בכל שינוי
-  useEffect(() => {
-    if (history.length > 0) localStorage.setItem('chatHistory', JSON.stringify(history));
-  }, [history]);
-
-  useEffect(() => {
-    if (savedWebhooks.length > 0) localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
-  }, [savedWebhooks]);
-
-  const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
-    if (!key) return;
-    try {
-      await fetch(`${SYNC_PROVIDER_URL}${key}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    } catch (err) {
-      console.error('Cloud sync failed:', err);
-    }
-  }, []);
-
+  // 2. פונקציית משיכה מהענן
   const pullFromCloud = useCallback(async (key: string) => {
     if (!key) return;
     setSyncStatus('syncing');
@@ -71,146 +54,144 @@ export default function App() {
           cloudWebhooks = remoteData.webhooks || [];
         }
 
-        if (cloudHistory.length > 0 || cloudWebhooks.length > 0) {
+        // מיזוג מידע - מניעת כפילויות
+        if (cloudHistory.length > 0) {
           setHistory(prev => {
             const combined = [...prev, ...cloudHistory];
             return Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
               .sort((a, b) => b.timestamp - a.timestamp)
               .slice(0, 50);
           });
-
+        }
+        
+        if (cloudWebhooks.length > 0) {
           setSavedWebhooks(prev => {
             const combined = [...prev, ...cloudWebhooks];
-            return Array.from(new Map(combined.map(item => [item.url, item])).values());
+            return Array.from(new Map(combined.map(item => [item.id, item])).values());
           });
         }
         setSyncStatus('success');
-      } else {
-        setSyncStatus('idle');
       }
-    } catch (err) {
+    } catch (e) {
       setSyncStatus('error');
     }
   }, []);
 
-  // משיכה מהענן ברגע שהמשתמש מזוהה
+  // 3. פונקציית דחיפה לענן
+  const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
+    if (!key) return;
+    setSyncStatus('syncing');
+    try {
+      await fetch(`${SYNC_PROVIDER_URL}${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      setSyncStatus('success');
+    } catch (e) {
+      setSyncStatus('error');
+    }
+  }, []);
+
+  // 4. סנכרון אוטומטי בשינויים
   useEffect(() => {
-    if (user?.syncKey) pullFromCloud(user.syncKey);
-  }, [user?.syncKey, pullFromCloud]);
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      if (user?.syncKey) pullFromCloud(user.syncKey);
+      return;
+    }
 
-  const saveHistory = useCallback((payloadToSave: ChatMessagePayload) => {
-    setHistory(prev => {
-      const newItem: HistoryItem = { timestamp: Date.now(), payload: payloadToSave };
-      const updated = [newItem, ...prev].slice(0, 50);
-      if (user?.syncKey) pushToCloud(user.syncKey, { history: updated, webhooks: savedWebhooks });
-      return updated;
-    });
-  }, [user, savedWebhooks, pushToCloud]);
+    if (user?.syncKey) {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = setTimeout(() => {
+        pushToCloud(user.syncKey, { history, webhooks: savedWebhooks });
+      }, 2000);
+    }
 
-  const addWebhook = useCallback((webhook: SavedWebhook) => {
-    setSavedWebhooks(prev => {
-        const updated = [webhook, ...prev.filter(w => w.url !== webhook.url)];
-        if (user?.syncKey) pushToCloud(user.syncKey, { history, webhooks: updated });
-        return updated;
-    });
-  }, [user, history, pushToCloud]);
-
-  const deleteWebhook = useCallback((id: string) => {
-    setSavedWebhooks(prev => {
-        const updated = prev.filter(w => w.id !== id);
-        if (user?.syncKey) pushToCloud(user.syncKey, { history, webhooks: updated });
-        return updated;
-    });
-  }, [user, history, pushToCloud]);
+    localStorage.setItem('chatHistory', JSON.stringify(history));
+    localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
+  }, [history, savedWebhooks, user?.syncKey, pullFromCloud, pushToCloud]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
-    const userData = { username, syncKey, avatar };
-    setUser(userData);
-    localStorage.setItem('chathub_user', JSON.stringify(userData));
+    const newUser = { username, syncKey, avatar };
+    setUser(newUser);
+    localStorage.setItem('chathub_user', JSON.stringify(newUser));
     setIsAuthOpen(false);
+    pullFromCloud(syncKey);
   };
 
-  const handleLogout = () => {
-    if(confirm('בטוח שברצונך להתנתק?')) {
-      localStorage.clear();
-      window.location.reload();
-    }
+  const saveHistory = (payload: ChatMessagePayload) => {
+    setHistory(prev => {
+      const newItem: HistoryItem = { timestamp: Date.now(), payload };
+      return [newItem, ...prev].slice(0, 50);
+    });
+  };
+
+  const handleAddWebhook = (webhook: SavedWebhook) => {
+    setSavedWebhooks(prev => [...prev, webhook]);
+  };
+
+  const handleDeleteWebhook = (id: string) => {
+    setSavedWebhooks(prev => prev.filter(w => w.id !== id));
   };
 
   return (
-    <div className="min-h-screen flex flex-col p-4 sm:p-6 lg:p-10 box-border bg-[#f8fafc] font-sans">
-      <Analytics />
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900" dir="rtl">
+      <div className="max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-10 h-screen flex flex-col gap-6">
+        
+        {/* Header / Tabs */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/50 backdrop-blur-md p-2 rounded-[2rem] border border-white shadow-sm">
+          <div className="flex items-center gap-2 p-1">
+            <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>
+              משגר הודעות
+            </TabButton>
+            <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>
+              מחולל סקרים
+            </TabButton>
+          </div>
+          <div className="flex items-center gap-3 px-4">
+            <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
+            <div className="text-right hidden md:block">
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">מחובר כ-</p>
+              <p className="text-sm font-bold text-slate-700">{user?.username || 'אורח'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+          {/* Main App Area */}
+          <main className="flex-1 min-h-0">
+            {activeApp === 'chatSender' ? (
+              <GoogleChatSender 
+                saveHistory={saveHistory} 
+                savedWebhooks={savedWebhooks}
+                onAddWebhook={handleAddWebhook}
+                onDeleteWebhook={handleDeleteWebhook}
+              />
+            ) : (
+              <OtherApp 
+                saveHistory={saveHistory}
+                savedWebhooks={savedWebhooks}
+                onAddWebhook={handleAddWebhook}
+                onDeleteWebhook={handleDeleteWebhook}
+              />
+            )}
+          </main>
+
+          {/* Sidebar */}
+          <div className="w-full lg:w-96 flex-shrink-0">
+            <HistorySidebar 
+              history={history} 
+              syncStatus={syncStatus}
+              username={user?.username}
+              avatar={user?.avatar}
+            />
+          </div>
+        </div>
+      </div>
+
       {isAuthOpen && <AuthModal onLogin={handleLogin} />}
-      
-      <header className="w-full max-w-6xl mx-auto mb-10">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-5 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden">
-          
-          <div className="flex items-center gap-5">
-             <div className="p-2.5 bg-indigo-600 rounded-3xl shadow-lg shadow-indigo-100">
-               <img src="https://raw.githubusercontent.com/shey3132/-22/main/%D7%A4%D7%A8%D7%95%D7%A4%D7%99%D7%9C%20%D7%93%D7%99%D7%92%D7%99%D7%98%D7%9C%D7%99%20%D7%A2%D7%9D%20%D7%A8%D7%A9%D7%AA%20%D7%A4%D7%A2%D7%95%D7%9C%D7%94.png" alt="Logo" className="w-10 h-10 object-contain brightness-0 invert" />
-             </div>
-             <div>
-               <h1 className="text-3xl font-black text-slate-900 leading-none tracking-tight">ChatHub</h1>
-               <p className="text-[10px] font-black text-indigo-500 mt-1.5 uppercase tracking-widest">Ultimate Message Hub</p>
-             </div>
-          </div>
-
-          <nav className="flex items-center justify-center p-1.5 bg-slate-100/80 backdrop-blur rounded-[1.5rem] border border-slate-200/50">
-            <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>🚀 הודעות</TabButton>
-            <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>📊 סקרים</TabButton>
-          </nav>
-
-          <div className="flex items-center gap-4">
-             {user && (
-               <div className="flex items-center gap-3 bg-slate-50 pl-4 py-1.5 pr-1.5 rounded-full border border-slate-100 shadow-sm">
-                  <div className="flex flex-col items-end">
-                    <span className="text-xs font-extrabold text-slate-800 leading-none">{user.username}</span>
-                    <span className="text-[9px] text-green-500 font-bold mt-0.5">מחובר</span>
-                  </div>
-                  {user.avatar ? (
-                    <img src={user.avatar} className="w-8 h-8 rounded-full border-2 border-white shadow-sm" alt="Profile" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-black">
-                      {user.username.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <button onClick={handleLogout} className="mr-2 text-slate-300 hover:text-red-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7" /></svg>
-                  </button>
-               </div>
-             )}
-          </div>
-        </div>
-      </header>
-      
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto w-full">
-        <div className="lg:col-span-8">
-            {activeApp === 'chatSender' && (
-                <GoogleChatSender 
-                    saveHistory={saveHistory} 
-                    savedWebhooks={savedWebhooks}
-                    onAddWebhook={addWebhook}
-                    onDeleteWebhook={deleteWebhook}
-                />
-            )}
-            {activeApp === 'otherApp' && (
-                <OtherApp 
-                    saveHistory={saveHistory} 
-                    savedWebhooks={savedWebhooks}
-                    onAddWebhook={addWebhook}
-                    onDeleteWebhook={deleteWebhook}
-                />
-            )}
-        </div>
-        <div className="lg:col-span-4">
-          <HistorySidebar 
-            history={history} 
-            syncStatus={syncStatus}
-            username={user?.username}
-            avatar={user?.avatar}
-          />
-        </div>
-      </main>
+      <Analytics />
     </div>
   );
 }
