@@ -11,8 +11,9 @@ import AuthModal from './components/AuthModal';
 type ActiveApp = 'chatSender' | 'otherApp';
 type SyncLifecycle = 'BOOTING' | 'PULLING' | 'READY' | 'ERROR';
 
-const SYNC_PROVIDER_URL = 'https://kvdb.io/6E3tYfN1Yx6878YpXy6L5z/'; 
-const VERSION_PREFIX = 'chathub_v3_';
+// שרת סנכרון חדש ויציב יותר עם תמיכה מלאה ב-CORS
+const SYNC_PROVIDER_URL = 'https://keyvalue.impressed.nl/api/keyvalue/'; 
+const VERSION_KEY_PREFIX = 'chathub_final_v5_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -25,97 +26,92 @@ export default function App() {
   
   const lastCloudDataHash = useRef<string>("");
 
-  // 1. פונקציה למשיכת נתונים - חייבת להסתיים לפני כל פעולה אחרת
+  // 1. פונקציה למשיכת נתונים - ללא Headers שגורמים ל-CORS Preflight
   const initializeData = useCallback(async (syncKey: string) => {
     setLifecycle('PULLING');
     setSyncStatus('syncing');
-    console.log("%c[Sync] Starting initialization...", "color: blue; font-weight: bold;");
+    
+    // קודם כל - נטען מהר מהלוקאל כדי שהמשתמש יראה משהו מייד
+    const localH = localStorage.getItem('chatHistory_v5');
+    const localW = localStorage.getItem('savedWebhooks_v5');
+    if (localH) setHistory(JSON.parse(localH));
+    if (localW) setSavedWebhooks(JSON.parse(localW));
+
+    console.log("%c[Sync] Fetching from cloud...", "color: blue; font-weight: bold;");
 
     try {
-      const response = await fetch(`${SYNC_PROVIDER_URL}${VERSION_PREFIX}${syncKey}`, { 
-        cache: 'no-store',
-        headers: { 'Pragma': 'no-cache' }
-      });
+      // בקשה נקייה ללא Custom Headers כדי להימנע מ-CORS OPTIONS request
+      const response = await fetch(`${SYNC_PROVIDER_URL}${VERSION_KEY_PREFIX}${syncKey}`);
       
       if (response.ok) {
-        const data: UserDataContainer = await response.json();
-        console.log("%c[Sync] Data found in cloud. Merging...", "color: green;");
-        
-        const remoteHistory = data.history || [];
-        const remoteWebhooks = data.webhooks || [];
-        
-        setHistory(remoteHistory);
-        setSavedWebhooks(remoteWebhooks);
-        lastCloudDataHash.current = JSON.stringify({ history: remoteHistory, webhooks: remoteWebhooks });
-      } else if (response.status === 404) {
-        console.log("%c[Sync] Cloud is empty. Checking local storage...", "color: orange;");
-        // אם אין בענן, ננסה לקחת מהלוקאל של הגרסה הקודמת כחסד אחרון
-        const localH = localStorage.getItem('chatHistory');
-        const localW = localStorage.getItem('savedWebhooks');
-        if (localH) setHistory(JSON.parse(localH));
-        if (localW) setSavedWebhooks(JSON.parse(localW));
+        const rawData = await response.text();
+        if (rawData && rawData !== "null") {
+          const data: UserDataContainer = JSON.parse(rawData);
+          console.log("%c[Sync] Cloud data retrieved.", "color: green;");
+          
+          const remoteHistory = data.history || [];
+          const remoteWebhooks = data.webhooks || [];
+          
+          setHistory(remoteHistory);
+          setSavedWebhooks(remoteWebhooks);
+          lastCloudDataHash.current = JSON.stringify({ history: remoteHistory, webhooks: remoteWebhooks });
+        }
+      } else {
+        console.warn("[Sync] Cloud empty or unreachable, status:", response.status);
       }
-      
-      // אישור סופי: המערכת מוכנה
+    } catch (e) {
+      console.error("[Sync] Network/CORS error:", e);
+      setSyncStatus('error');
+    } finally {
+      // תמיד עוברים ל-READY כדי לא לחסום את המשתמש
       setTimeout(() => {
         setLifecycle('READY');
-        setSyncStatus('success');
-        console.log("%c[Sync] Lifecycle is now READY. Auto-save enabled.", "color: green; font-weight: bold;");
-      }, 1000);
-
-    } catch (e) {
-      console.error("[Sync] Pull error:", e);
-      setLifecycle('ERROR');
-      setSyncStatus('error');
+        if (syncStatus !== 'error') setSyncStatus('success');
+      }, 500);
     }
   }, []);
 
-  // 2. פונקציית שמירה - מופעלת רק כשהמצב READY
+  // 2. פונקציית שמירה - אופטימיזציה למניעת Preflight
   const persistToCloud = useCallback(async (syncKey: string, data: UserDataContainer) => {
     if (lifecycle !== 'READY') return;
 
     const currentHash = JSON.stringify(data);
     if (currentHash === lastCloudDataHash.current) return;
 
-    // הגנה מפני מחיקה בטעות: אם הכל ריק ובעבר היה לנו מידע, אל תמחק!
+    // הגנה: לא דורסים אם הסטייט ריק ובעבר היה מידע
     if (data.history.length === 0 && data.webhooks.length === 0 && lastCloudDataHash.current !== "") {
-        console.warn("[Sync] Push blocked: Prevention of accidental wipe.");
         return;
     }
 
     setSyncStatus('syncing');
     try {
-      const res = await fetch(`${SYNC_PROVIDER_URL}${VERSION_PREFIX}${syncKey}`, {
+      await fetch(`${SYNC_PROVIDER_URL}${VERSION_KEY_PREFIX}${syncKey}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' }, // שימוש ב-text/plain מונע Preflight ברוב המקרים
         body: currentHash
       });
-      if (res.ok) {
-        lastCloudDataHash.current = currentHash;
-        setSyncStatus('success');
-        console.log("%c[Sync] Cloud updated successfully.", "color: darkgreen;");
-      } else {
-        setSyncStatus('error');
-      }
+      lastCloudDataHash.current = currentHash;
+      setSyncStatus('success');
     } catch (e) {
+      console.error("[Sync] Save failed");
       setSyncStatus('error');
     }
   }, [lifecycle]);
 
-  // 3. טעינת משתמש ב-Mount
+  // 3. טעינה ראשונית
   useEffect(() => {
-    const savedUser = localStorage.getItem('chathub_user_v3');
+    const savedUser = localStorage.getItem('chathub_user_v5');
     if (savedUser) {
       const parsed = JSON.parse(savedUser);
       setUser(parsed);
       initializeData(parsed.syncKey);
     } else {
       setIsAuthOpen(true);
-      setLifecycle('READY'); // משתמש חדש מתחיל ב-READY
+      setLifecycle('READY');
     }
   }, [initializeData]);
 
-  // 4. אפקט שמירה אוטומטי - Debounced
+  // 4. שמירה אוטומטית
   useEffect(() => {
     if (!user || lifecycle !== 'READY') return;
 
@@ -123,18 +119,18 @@ export default function App() {
       persistToCloud(user.syncKey, { history, webhooks: savedWebhooks });
     }, 2000);
 
-    // עדכון לוקאל תמיד לגיבוי
-    localStorage.setItem('chatHistory', JSON.stringify(history));
-    localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
+    // תמיד לשמור מקומית
+    localStorage.setItem('chatHistory_v5', JSON.stringify(history));
+    localStorage.setItem('savedWebhooks_v5', JSON.stringify(savedWebhooks));
 
     return () => clearTimeout(timer);
   }, [history, savedWebhooks, user, persistToCloud, lifecycle]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
-    setLifecycle('BOOTING'); // נעל שמירה
+    setLifecycle('BOOTING');
     setUser(newUser);
-    localStorage.setItem('chathub_user_v3', JSON.stringify(newUser));
+    localStorage.setItem('chathub_user_v5', JSON.stringify(newUser));
     setIsAuthOpen(false);
     initializeData(syncKey);
   };
@@ -184,10 +180,10 @@ export default function App() {
           </div>
           <div className="px-6 flex items-center gap-3">
              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                lifecycle === 'READY' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                syncStatus === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
              }`}>
                 <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : syncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'}`} />
-                {lifecycle === 'READY' ? (syncStatus === 'syncing' ? 'מעדכן ענן...' : 'מסונכרן') : 'מתחבר לענן...'}
+                {syncStatus === 'error' ? 'שגיאת סנכרון (עובד מקומית)' : syncStatus === 'syncing' ? 'מעדכן ענן...' : 'הנתונים מסונכרנים'}
              </div>
           </div>
         </div>

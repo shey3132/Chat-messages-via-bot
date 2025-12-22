@@ -14,8 +14,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
 
   const generateSyncKey = async (googleSubId: string) => {
-    // גרסה 3 - מבטיח בידוד מוחלט מכל הבאגים הקודמים
-    const salt = "chathub_final_v3";
+    // גרסה 5 - מפתח חדש ונקי למניעת בעיות CORS וסנכרון
+    const salt = "chathub_final_v5_stable";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -80,8 +80,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-3xl font-black text-slate-900 leading-tight">ברוכים השבים</h2>
-          <p className="text-slate-500 mt-3 text-sm leading-relaxed px-4 italic">אנחנו מתחברים לענן כדי לשלוף את המידע שלך...</p>
+          <h2 className="text-3xl font-black text-slate-900 leading-tight">חיבור מאובטח</h2>
+          <p className="text-slate-500 mt-3 text-sm leading-relaxed px-4 italic">טוען את ההיסטוריה והוובוקים שלך מהענן...</p>
         </div>
 
         {error && <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold text-center border border-red-100">{error}</div>}
@@ -90,7 +90,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           {loading ? (
             <div className="flex flex-col items-center gap-4">
               <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-[11px] font-black text-indigo-600 uppercase tracking-widest animate-pulse" dir="rtl">מבצע סנכרון מאובטח...</p>
+              <p className="text-[11px] font-black text-indigo-600 uppercase tracking-widest animate-pulse" dir="rtl">מבצע סנכרון נתונים...</p>
             </div>
           ) : (
             <div id="googleBtn" className="w-full flex justify-center scale-110"></div>
