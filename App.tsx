@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { inject } from '@vercel/analytics';
+import { Analytics } from '@vercel/analytics/react';
 import GoogleChatSender from './views/GoogleChatSender';
 import OtherApp from './views/OtherApp';
 import { HistoryItem, ChatMessagePayload, SavedWebhook, UserDataContainer } from './types';
@@ -19,15 +19,6 @@ export default function App() {
   const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
-
-  // אתחול האנליטיקה של Vercel בצורה בטוחה וישירה
-  useEffect(() => {
-    try {
-      inject();
-    } catch (e) {
-      console.warn('Analytics injection failed', e);
-    }
-  }, []);
 
   const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
     if (!key) return;
@@ -158,6 +149,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col p-4 sm:p-6 lg:p-10 box-border bg-[#f8fafc] font-sans">
+      <Analytics />
       {isAuthOpen && <AuthModal onLogin={handleLogin} />}
       
       <header className="w-full max-w-6xl mx-auto mb-10">
