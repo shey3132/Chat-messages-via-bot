@@ -9,93 +9,95 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'netfree';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local';
 
-// שימוש ב-JSONBlob - לרוב פתוח בנטפרי
-const CLOUD_PROVIDER_URL = 'https://jsonblob.com/api/jsonBlob';
-const STORAGE_KEY_V10 = 'ch_v10_';
+// Npoint הוא שירות יציב יותר ולרוב לא חסום בנטפרי (418)
+const CLOUD_SYNC_URL = 'https://api.npoint.io/';
+const STORAGE_PREFIX = 'ch_v11_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [savedWebhooks, setSavedWebhooks] = useState<SavedWebhook[]>([]);
-  const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string, blobId?: string} | null>(null);
+  const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string, cloudId?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [isReady, setIsReady] = useState(false);
   
   const lastCloudDataHash = useRef<string>("");
 
-  // 1. סנכרון מהענן - v10
-  const fetchCloudData = useCallback(async (blobId: string) => {
-    if (!blobId) return;
-    setSyncStatus('syncing');
-    console.log(`%c[Sync v10] Fetching: ${blobId}`, "color: #8b5cf6;");
+  // פונקציית עזר לשליחת מידע ללא headers מורכבים (מונע OPTIONS request)
+  const simpleFetch = async (url: string, method: 'GET' | 'POST', body?: any) => {
+    const options: RequestInit = {
+      method,
+      // כשאנחנו לא מגדירים Content-Type כ-application/json, הדפדפן לא שולח OPTIONS preflight
+      // ונטפרי לא חוסם את הבקשה על "CORS"
+      mode: 'cors',
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    return fetch(url, options);
+  };
 
+  // 1. סנכרון מהענן - v11
+  const fetchCloudData = useCallback(async (syncKey: string) => {
+    // אנחנו מנסים למצוא את ה-ID של הענן ששמור מקומית
+    const savedCloudId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
+    if (!savedCloudId) {
+      setIsReady(true);
+      return;
+    }
+
+    setSyncStatus('syncing');
     try {
-      const response = await fetch(`${CLOUD_PROVIDER_URL}/${blobId}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      });
-      
+      const response = await fetch(`${CLOUD_SYNC_URL}${savedCloudId}`);
       if (response.ok) {
         const data: UserDataContainer = await response.json();
-        if (data.history) setHistory(data.history);
-        if (data.webhooks) setSavedWebhooks(data.webhooks);
-        lastCloudDataHash.current = JSON.stringify(data);
-        setSyncStatus('success');
-      } else if (response.status === 418) {
-        setSyncStatus('netfree');
-      } else {
-        setSyncStatus('local');
+        if (data && (data.history || data.webhooks)) {
+          setHistory(data.history || []);
+          setSavedWebhooks(data.webhooks || []);
+          lastCloudDataHash.current = JSON.stringify(data);
+          setSyncStatus('success');
+        }
       }
     } catch (e) {
+      console.warn("Cloud pull failed, working locally");
       setSyncStatus('local');
     } finally {
       setIsReady(true);
     }
   }, []);
 
-  // 2. שמירה לענן - v10
+  // 2. שמירה לענן - v11
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
     if (!isReady || !user) return;
     
     const currentHash = JSON.stringify(data);
     if (currentHash === lastCloudDataHash.current) return;
+    if (data.history.length === 0 && data.webhooks.length === 0 && lastCloudDataHash.current !== "") return;
 
     setSyncStatus('syncing');
-    try {
-      let response;
-      if (user.blobId) {
-        // עדכון קיים
-        response = await fetch(`${CLOUD_PROVIDER_URL}/${user.blobId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: currentHash
-        });
-      } else {
-        // יצירת סל חדש בפעם הראשונה
-        response = await fetch(CLOUD_PROVIDER_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: currentHash
-        });
-        if (response.ok) {
-          const location = response.headers.get('Location');
-          const newBlobId = location?.split('/').pop();
-          if (newBlobId) {
-            const updatedUser = { ...user, blobId: newBlobId };
-            setUser(updatedUser);
-            localStorage.setItem('ch_user_v10', JSON.stringify(updatedUser));
-          }
-        }
-      }
+    const savedCloudId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`);
 
-      if (response?.ok) {
+    try {
+      // ב-Npoint, POST יוצר "סל" חדש
+      const url = savedCloudId ? `${CLOUD_SYNC_URL}${savedCloudId}` : CLOUD_SYNC_URL;
+      
+      // משתמשים ב-fetch פשוט כדי לעקוף חסימות
+      const response = await fetch(url, {
+        method: 'POST',
+        body: currentHash
+      });
+
+      if (response.ok) {
+        const resData = await response.json();
+        if (!savedCloudId && resData.id) {
+          localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, resData.id);
+          setUser(prev => prev ? { ...prev, cloudId: resData.id } : null);
+        }
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
-      } else if (response?.status === 418) {
-        setSyncStatus('netfree');
       } else {
         setSyncStatus('local');
       }
@@ -104,11 +106,11 @@ export default function App() {
     }
   }, [isReady, user]);
 
-  // 3. טעינה ראשונית
+  // 3. טעינה ראשונית - עדיפות ל-Local לשם מהירות
   useEffect(() => {
-    const localUser = localStorage.getItem('ch_user_v10');
-    const localH = localStorage.getItem('ch_history_v10');
-    const localW = localStorage.getItem('ch_webhooks_v10');
+    const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
+    const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
+    const localW = localStorage.getItem(`${STORAGE_PREFIX}webhooks`);
 
     if (localH) setHistory(JSON.parse(localH));
     if (localW) setSavedWebhooks(JSON.parse(localW));
@@ -116,8 +118,7 @@ export default function App() {
     if (localUser) {
       const parsed = JSON.parse(localUser);
       setUser(parsed);
-      if (parsed.blobId) fetchCloudData(parsed.blobId);
-      else setIsReady(true);
+      fetchCloudData(parsed.syncKey);
     } else {
       setIsAuthOpen(true);
       setIsReady(true);
@@ -130,10 +131,10 @@ export default function App() {
 
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
-    }, 3000);
+    }, 4000);
 
-    localStorage.setItem('ch_history_v10', JSON.stringify(history));
-    localStorage.setItem('ch_webhooks_v10', JSON.stringify(savedWebhooks));
+    localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
+    localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
 
     return () => clearTimeout(timer);
   }, [history, savedWebhooks, user, saveToCloud, isReady]);
@@ -141,8 +142,9 @@ export default function App() {
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
-    localStorage.setItem('ch_user_v10', JSON.stringify(newUser));
+    localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
     setIsAuthOpen(false);
+    fetchCloudData(syncKey);
   };
 
   const handleLogout = () => {
@@ -166,17 +168,11 @@ export default function App() {
           
           <div className="px-6 flex items-center gap-3">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                syncStatus === 'netfree' ? 'bg-amber-100 text-amber-700 animate-pulse' :
                 syncStatus === 'local' ? 'bg-slate-100 text-slate-500' : 'bg-green-50 text-green-600'
              }`}>
-                <div className={`w-2.2 h-2.2 rounded-full ${
-                    syncStatus === 'syncing' ? 'bg-indigo-400 animate-bounce' : 
-                    syncStatus === 'netfree' ? 'bg-amber-500' :
-                    syncStatus === 'local' ? 'bg-slate-400' : 'bg-green-500'
-                }`} />
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'local' ? 'bg-slate-400' : 'bg-green-500'}`} />
                 {syncStatus === 'syncing' ? 'סנכרון פעיל...' : 
-                 syncStatus === 'netfree' ? 'נטפרי חוסם ענן' :
-                 syncStatus === 'local' ? 'מצב מקומי' : 'מחובר ומסוגנכר'}
+                 syncStatus === 'local' ? 'מצב מקומי (נטפרי?)' : 'הנתונים מסונכרנים'}
              </div>
           </div>
         </div>
@@ -209,14 +205,14 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus={syncStatus === 'syncing' ? 'syncing' : (syncStatus === 'local' || syncStatus === 'netfree') ? 'error' : 'success'}
+              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'local' ? 'error' : 'success'}
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
               onLogout={handleLogout}
               onImport={(data) => {
-                  setHistory(data.history);
-                  setSavedWebhooks(data.webhooks);
+                  setHistory(data.history || []);
+                  setSavedWebhooks(data.webhooks || []);
               }}
             />
           </div>
