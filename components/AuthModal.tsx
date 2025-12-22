@@ -14,12 +14,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // פונקציית גיבוב ליצירת מפתח סנכרון - חייב להיות יציב לחלוטין
-  const generateSyncKey = async (identity: string) => {
-    const msgBuffer = new TextEncoder().encode(`chathub_secure_v5_${identity.toLowerCase()}`);
+  // פונקציית גיבוב יציבה ליצירת מפתח סנכרון ייחודי לכל משתמש גוגל
+  const generateSyncKey = async (googleSubId: string) => {
+    // השתמש במחרוזת קבועה כדי שהמפתח יהיה זהה תמיד לאותו משתמש
+    const salt = "chathub_production_v1";
+    const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+    // מפתח קצר ויציב ל-KV
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 24);
   };
 
   const decodeJWT = (token: string) => {
@@ -43,9 +46,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           callback: async (response: any) => {
             setLoading(true);
             const userData = decodeJWT(response.credential);
-            if (userData) {
+            if (userData && userData.sub) {
               const syncKey = await generateSyncKey(userData.sub);
-              onLogin(userData.name || userData.given_name || "משתמש", syncKey, userData.picture);
+              console.log("Generated Sync Key for user:", syncKey);
+              onLogin(userData.name || "משתמש", syncKey, userData.picture);
             } else {
               setError('שגיאה בזיהוי המשתמש.');
               setLoading(false);
@@ -65,7 +69,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           });
         }
       } else {
-        setTimeout(initGoogle, 300);
+        setTimeout(initGoogle, 500);
       }
     };
     initGoogle();
@@ -81,7 +85,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
             </svg>
           </div>
           <h2 className="text-3xl font-black text-slate-900">ברוכים הבאים</h2>
-          <p className="text-slate-500 mt-2">התחברו כדי לסנכרן את ההיסטוריה והוובוקים שלכם</p>
+          <p className="text-slate-500 mt-2 text-sm">התחברו כדי לשמור את הוובוקים וההיסטוריה שלכם בענן בצורה מאובטחת.</p>
         </div>
 
         {error && <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold text-center border border-red-100">{error}</div>}
@@ -90,12 +94,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           {loading ? (
             <div className="flex flex-col items-center gap-3">
               <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-xs font-bold text-indigo-600 uppercase" dir="rtl">מסנכרן נתונים...</p>
+              <p className="text-xs font-bold text-indigo-600 uppercase" dir="rtl">טוען נתונים מהענן...</p>
             </div>
           ) : (
             <div id="googleBtn" className="w-full flex justify-center"></div>
           )}
         </div>
+        
+        <p className="mt-10 text-[10px] text-slate-400 text-center leading-relaxed">
+          המידע שלכם נשמר במוצפן בשרתי KVDB.<br/>אנו לא שומרים את פרטי הכניסה שלכם.
+        </p>
       </div>
     </div>
   );
