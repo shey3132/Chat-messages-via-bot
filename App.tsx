@@ -9,12 +9,11 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key' | 'discovering' | 'cooldown';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const STORAGE_PREFIX = 'ch_v23_'; 
+const STORAGE_PREFIX = 'ch_v24_'; 
 
-// מרכזיות משנה למניעת עומס
 const HUB_SHARDS: Record<string, string> = {
   '0': 'b738495f36e47f763a86', '1': 'c29384f5a6b7c8d9e0f1', '2': 'a1b2c3d4e5f6a7b8c9d0',
   '3': 'f1e2d3c4b5a6f7e8d9c0', '4': '5a6b7c8d9e0f1a2b3c4d', '5': 'e5f6a7b8c9d0e1f2a3b4',
@@ -36,15 +35,16 @@ export default function App() {
   
   const lastCloudDataHash = useRef<string>("");
   const brokenShards = useRef<Set<string>>(new Set());
+  const errorCount = useRef<number>(0);
+  const cooldownUntil = useRef<number>(0);
 
   const getShardId = (syncKey: string) => {
-    // מנסה למצוא שארד שלא סומן כפגום
     for (let i = 0; i < syncKey.length; i++) {
         const char = syncKey.charAt(i).toLowerCase();
         const shardId = HUB_SHARDS[char];
         if (shardId && !brokenShards.current.has(shardId)) return shardId;
     }
-    return HUB_SHARDS['a']; // ברירת מחדל אחרונה
+    return HUB_SHARDS['a'];
   };
 
   const isValidId = (id: string | null) => {
@@ -57,7 +57,7 @@ export default function App() {
     setSyncStatus('syncing');
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       const response = await fetch(`${DATA_PROVIDER}${id}`, { signal: controller.signal });
       clearTimeout(timeoutId);
 
@@ -73,6 +73,7 @@ export default function App() {
           setSavedWebhooks(data.webhooks || []);
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
+          errorCount.current = 0;
           return true;
         }
       }
@@ -82,14 +83,16 @@ export default function App() {
   }, []);
 
   const discoverUserCloud = useCallback(async (syncKey: string) => {
+    if (Date.now() < cooldownUntil.current) return null;
     setSyncStatus('discovering');
     const shardId = getShardId(syncKey);
     try {
       const response = await fetch(`${DATA_PROVIDER}${shardId}`);
-      if (response.status === 500) {
+      if (response.status >= 500) {
         brokenShards.current.add(shardId);
-        // נסיון חוזר עם שארד אחר
-        return discoverUserCloud(syncKey);
+        errorCount.current++;
+        if (errorCount.current > 3) cooldownUntil.current = Date.now() + 60000;
+        return null;
       }
       
       if (response.ok) {
@@ -127,22 +130,28 @@ export default function App() {
 
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
     if (!isReady || !user) return;
+    if (Date.now() < cooldownUntil.current) {
+        setSyncStatus('cooldown');
+        return;
+    }
+
     const currentHash = JSON.stringify(data);
-    if (currentHash === lastCloudDataHash.current) return;
-    if (data.history.length === 0 && data.webhooks.length === 0 && lastCloudDataHash.current !== "") return;
+    if (currentHash === lastCloudDataHash.current) {
+        setSyncStatus(isValidId(cloudId) ? 'success' : 'local');
+        return;
+    }
+    
+    // אם אין דאטה בכלל, אל תנסה ליצור "בין" חדש
+    if (data.history.length === 0 && data.webhooks.length === 0) return;
 
     setSyncStatus('syncing');
     try {
       const isExisting = isValidId(cloudId);
-      // תיקון Endpoint: שימוש בנתיב היצירה הרשמי אם מדובר בקובץ חדש
       const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : `${DATA_PROVIDER}bins`;
       
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: currentHash
       });
 
@@ -155,9 +164,16 @@ export default function App() {
           if (!isExisting) await registerInHub(user.syncKey, newId);
           lastCloudDataHash.current = currentHash;
           setSyncStatus('success');
+          errorCount.current = 0;
         }
       } else {
-        setSyncStatus('local');
+        errorCount.current++;
+        if (errorCount.current > 3) {
+            cooldownUntil.current = Date.now() + 60000;
+            setSyncStatus('cooldown');
+        } else {
+            setSyncStatus('local');
+        }
       }
     } catch (e) {
       setSyncStatus('local');
@@ -191,14 +207,15 @@ export default function App() {
 
   useEffect(() => {
     if (!user || !isReady) return;
+    const interval = syncStatus === 'cooldown' ? 60000 : 8000;
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
-    }, 6000); 
+    }, interval); 
     
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
     return () => clearTimeout(timer);
-  }, [history, savedWebhooks, user, saveToCloud, isReady]);
+  }, [history, savedWebhooks, user, saveToCloud, isReady, syncStatus]);
 
   const handleLogin = async (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
@@ -216,13 +233,9 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (!confirm('להתנתק?')) return;
-    setUser(null);
-    setCloudId(null);
-    setHistory([]);
-    setSavedWebhooks([]);
-    localStorage.clear(); // ניקוי יסודי למקרה של מזהים פגומים
-    setIsAuthOpen(true);
+    if (!confirm('להתנתק? הנתונים יישארו בענן אך יימחקו מהמחשב הזה.')) return;
+    localStorage.clear();
+    window.location.reload();
   };
 
   return (
@@ -238,12 +251,14 @@ export default function App() {
           <div className="px-6 flex items-center gap-4">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
-                syncStatus === 'local' ? 'bg-slate-100 text-slate-500 border border-slate-200' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                syncStatus === 'cooldown' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                'bg-slate-100 text-slate-500 border border-slate-200'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-400'}`} />
-                {syncStatus === 'discovering' ? 'מחבר לענן...' :
-                 syncStatus === 'syncing' ? 'מעדכן...' : 
-                 syncStatus === 'success' ? 'גיבוי ענן פעיל' : 'עבודה מקומית'}
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' || syncStatus === 'discovering' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : syncStatus === 'cooldown' ? 'bg-amber-400' : 'bg-slate-400'}`} />
+                {syncStatus === 'discovering' ? 'מחפש גיבוי...' :
+                 syncStatus === 'syncing' ? 'מגבה...' : 
+                 syncStatus === 'success' ? 'גיבוי ענן פעיל' : 
+                 syncStatus === 'cooldown' ? 'שמור מקומית (ענן במנוחה)' : 'עבודה מקומית'}
              </div>
           </div>
         </div>
@@ -276,7 +291,7 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'success' ? 'success' : 'error'}
+              syncStatus={syncStatus === 'syncing' || syncStatus === 'discovering' ? 'syncing' : syncStatus === 'success' ? 'success' : 'idle'}
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
