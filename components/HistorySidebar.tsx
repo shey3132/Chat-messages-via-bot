@@ -11,13 +11,14 @@ interface HistorySidebarProps {
   savedWebhooks?: SavedWebhook[];
   cloudId: string | null;
   onLogout: () => void;
-  onImport: (data: UserDataContainer) => void;
+  onImportFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onExportFile: () => void;
   onSetCloudId: (id: string) => void;
   onResetCloud: () => void;
   onManualSync: () => void;
 }
 
-const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks = [], cloudId, onLogout, onImport, onSetCloudId, onResetCloud, onManualSync }: HistorySidebarProps) => {
+const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks = [], cloudId, onLogout, onImportFile, onExportFile, onSetCloudId, onResetCloud, onManualSync }: HistorySidebarProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
@@ -35,9 +36,9 @@ const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks =
           <div className="flex-1 text-right order-1 px-3">
             <h4 className="text-lg font-bold truncate leading-tight">{username || 'אורח'}</h4>
             <div className="flex items-center gap-2 mt-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'success' ? 'bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)]' : 'bg-amber-400 animate-pulse'}`} />
+                <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'success' ? 'bg-green-400' : 'bg-amber-400 animate-pulse'}`} />
                 <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">
-                  {syncStatus === 'success' ? 'מגובה אוטומטית' : 'עבודה מקומית'}
+                  {syncStatus === 'success' ? 'גיבוי ענן פעיל' : 'סנכרון...'}
                 </p>
             </div>
           </div>
@@ -49,42 +50,32 @@ const HistorySidebar = ({ history, syncStatus, username, avatar, savedWebhooks =
             onClick={() => setShowAdvanced(!showAdvanced)} 
             className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors text-center block w-full"
         >
-            {showAdvanced ? 'הסתר הגדרות' : 'הגדרות סנכרון ידניות'}
+            {showAdvanced ? 'הסתר כלים' : 'כלי גיבוי וסנכרון'}
         </button>
-        
-        {syncStatus !== 'success' && (
-            <button 
-                onClick={onManualSync}
-                className="text-[9px] font-bold text-indigo-500 bg-indigo-50 py-1.5 rounded-full border border-indigo-100 hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                נסה לחבר ענן כעת
-            </button>
-        )}
       </div>
 
-      {/* Advanced Cloud Management */}
       {showAdvanced && (
-        <div className="mb-6 space-y-3 animate-in slide-in-from-top-2 duration-300 p-4 bg-slate-50 rounded-[1.8rem] border border-slate-100">
-            <div className="text-[10px] font-bold text-slate-500 mb-2 text-right">מזהה ענן נוכחי:</div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200 text-[10px] font-mono truncate text-indigo-600 mb-4 text-center">{cloudId || 'לא נוצר עדיין'}</div>
-            
+        <div className="mb-6 space-y-4 animate-in slide-in-from-top-2 duration-300 p-4 bg-slate-50 rounded-[1.8rem] border border-slate-100">
             <div className="grid grid-cols-2 gap-2">
-                <button 
-                    onClick={() => {
-                        const id = prompt('הכנס מפתח ענן ידני:');
-                        if (id) onSetCloudId(id);
-                    }}
-                    className="py-2 bg-white text-indigo-600 rounded-lg text-[9px] font-black border border-indigo-100 hover:bg-indigo-50"
-                >
-                    ייבוא ידני
+                <button onClick={onExportFile} className="py-2 px-3 bg-white text-slate-700 rounded-lg text-[10px] font-bold border border-slate-200 hover:border-indigo-300 flex items-center justify-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  ייצוא לקובץ
                 </button>
-                <button 
-                    onClick={() => { if(confirm('לאפס חיבור ענן?')) onResetCloud(); }}
-                    className="py-2 bg-white text-red-500 rounded-lg text-[9px] font-black border border-red-100 hover:bg-red-50"
-                >
-                    ניתוק מזהה
-                </button>
+                <label className="py-2 px-3 bg-white text-slate-700 rounded-lg text-[10px] font-bold border border-slate-200 hover:border-indigo-300 flex items-center justify-center gap-1 cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  ייבוא מקובץ
+                  <input type="file" className="hidden" accept=".json" onChange={onImportFile} />
+                </label>
+            </div>
+            
+            <div className="h-px bg-slate-200" />
+            
+            <div className="flex flex-col gap-2">
+              <div className="text-[9px] font-black text-slate-400 uppercase text-center tracking-tighter">Cloud ID: {cloudId || '---'}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={onManualSync} className="py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold border border-indigo-100 hover:bg-indigo-100">סנכרן עכשיו</button>
+                <button onClick={onResetCloud} className="py-1.5 bg-red-50 text-red-600 rounded-lg text-[10px] font-bold border border-red-100 hover:bg-red-100">אפס חיבור</button>
+              </div>
             </div>
         </div>
       )}

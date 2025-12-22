@@ -14,7 +14,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [status, setStatus] = useState('ממתין להתחברות...');
 
   const generateSyncKey = async (googleSubId: string) => {
-    const salt = "chathub_v27_universal_key";
+    const salt = "chathub_v28_universal_key";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -43,7 +43,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
             const userData = decodeJWT(response.credential);
             if (userData && userData.sub) {
               const syncKey = await generateSyncKey(userData.sub);
-              setStatus('מזהה ענן...');
+              setStatus('מחבר ענן...');
               setTimeout(() => {
                 onLogin(userData.name || "משתמש", syncKey, userData.picture);
               }, 500);
@@ -73,14 +73,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-black text-slate-900 italic tracking-tight">ChatHub v27</h2>
-          <p className="text-slate-500 mt-2 text-sm font-bold uppercase tracking-widest opacity-60">DEEP PERSISTENCE MODE</p>
+          <h2 className="text-2xl font-black text-slate-900 italic tracking-tight">ChatHub v28</h2>
+          <p className="text-slate-500 mt-2 text-sm font-bold uppercase tracking-widest opacity-60">TRIPLE BACKUP MODE</p>
           
           <div className="mt-6 p-5 bg-indigo-50 rounded-[1.8rem] text-[11px] text-indigo-800 font-bold leading-relaxed border border-indigo-100 flex items-center gap-4">
              <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0 border border-indigo-100">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
              </div>
-             <p className="text-right">גרסה v27 מתקנת את פרוטוקול העדכון ל-PUT, מה שמבטיח שההיסטוריה שלך תישמר בענן בצורה אמינה וללא שגיאות "לא נמצא".</p>
+             <p className="text-right">גרסה v28 מתקנת את הגיבוי בענן ומשיקה "גיבוי משולש": ענן יציב, זיכרון מקומי וייצוא ידני לקובץ. ההיסטוריה שלך בטוחה מתמיד.</p>
           </div>
         </div>
         
@@ -93,13 +93,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 <span className="text-[10px] text-indigo-600 font-black uppercase tracking-[0.2em]">{status}</span>
             </div>
           ) : <div id="googleBtn" className="hover:scale-105 transition-transform duration-200"></div>}
-        </div>
-        
-        <div className="mt-8 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">סנכרון ענן יציב</p>
-            </div>
         </div>
       </div>
     </div>
