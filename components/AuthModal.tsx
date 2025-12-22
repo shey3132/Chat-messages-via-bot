@@ -14,8 +14,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
 
   const generateSyncKey = async (googleSubId: string) => {
-    // השתמש ב-Prefix חדש לגמרי (v2) כדי למנוע משיכת זבל מגרסאות קודמות
-    const salt = "chathub_ironclad_v2";
+    // גרסה 3 - מבטיח בידוד מוחלט מכל הבאגים הקודמים
+    const salt = "chathub_final_v3";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -75,22 +75,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-2xl">
       <div className="bg-white w-full max-w-md rounded-[3rem] shadow-2xl p-8 sm:p-12 border border-white/20">
         <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] mx-auto mb-6 flex items-center justify-center shadow-xl shadow-indigo-200">
+          <div className="w-20 h-20 bg-indigo-600 rounded-[2.5rem] mx-auto mb-6 flex items-center justify-center shadow-xl shadow-indigo-200">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-3xl font-black text-slate-900 leading-tight">התחברו לסנכרון מלא</h2>
-          <p className="text-slate-500 mt-3 text-sm leading-relaxed px-4">הוובוקים וההיסטוריה שלכם יישמרו בענן ויהיו זמינים לכם מכל מקום.</p>
+          <h2 className="text-3xl font-black text-slate-900 leading-tight">ברוכים השבים</h2>
+          <p className="text-slate-500 mt-3 text-sm leading-relaxed px-4 italic">אנחנו מתחברים לענן כדי לשלוף את המידע שלך...</p>
         </div>
 
         {error && <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold text-center border border-red-100">{error}</div>}
 
-        <div className="flex flex-col items-center justify-center min-h-[100px]" dir="ltr">
+        <div className="flex flex-col items-center justify-center min-h-[120px]" dir="ltr">
           {loading ? (
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest" dir="rtl">יוצר חיבור מאובטח...</p>
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+              <p className="text-[11px] font-black text-indigo-600 uppercase tracking-widest animate-pulse" dir="rtl">מבצע סנכרון מאובטח...</p>
             </div>
           ) : (
             <div id="googleBtn" className="w-full flex justify-center scale-110"></div>

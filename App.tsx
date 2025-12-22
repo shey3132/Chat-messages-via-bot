@@ -9,9 +9,10 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
+type SyncLifecycle = 'BOOTING' | 'PULLING' | 'READY' | 'ERROR';
 
-// מזהה ה-Bucket של ה-KV - שינוי גרסה לבידוד תקלות עבר
 const SYNC_PROVIDER_URL = 'https://kvdb.io/6E3tYfN1Yx6878YpXy6L5z/'; 
+const VERSION_PREFIX = 'chathub_v3_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -19,146 +20,131 @@ export default function App() {
   const [savedWebhooks, setSavedWebhooks] = useState<SavedWebhook[]>([]);
   const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [lifecycle, setLifecycle] = useState<SyncLifecycle>('BOOTING');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
   
-  // --- מנגנון נעילה קריטי ---
-  const isInitialized = useRef(false); // האם סיימנו Pull מוצלח?
-  const isPulling = useRef(false);    // האם אנחנו כרגע בתהליך Pull?
-  const lastCloudHash = useRef("");   // חתימה של המידע האחרון שהגיע מהענן
+  const lastCloudDataHash = useRef<string>("");
 
-  // 1. פונקציית משיכה מהענן
-  const pullFromCloud = useCallback(async (key: string) => {
-    if (!key || isPulling.current) return;
-    
-    isPulling.current = true;
+  // 1. פונקציה למשיכת נתונים - חייבת להסתיים לפני כל פעולה אחרת
+  const initializeData = useCallback(async (syncKey: string) => {
+    setLifecycle('PULLING');
     setSyncStatus('syncing');
-    console.log("CloudSync: Starting pull...");
+    console.log("%c[Sync] Starting initialization...", "color: blue; font-weight: bold;");
 
     try {
-      const response = await fetch(`${SYNC_PROVIDER_URL}${key}?t=${Date.now()}`, { cache: 'no-store' });
+      const response = await fetch(`${SYNC_PROVIDER_URL}${VERSION_PREFIX}${syncKey}`, { 
+        cache: 'no-store',
+        headers: { 'Pragma': 'no-cache' }
+      });
       
-      if (response.status === 404) {
-        console.log("CloudSync: Remote is empty. Initializing new storage.");
-        isInitialized.current = true;
-        setSyncStatus('success');
-      } else if (response.ok) {
-        const remoteData: UserDataContainer = await response.json();
-        const h = remoteData.history || [];
-        const w = remoteData.webhooks || [];
+      if (response.ok) {
+        const data: UserDataContainer = await response.json();
+        console.log("%c[Sync] Data found in cloud. Merging...", "color: green;");
         
-        console.log(`CloudSync: Pulled ${h.length} history items and ${w.length} webhooks.`);
+        const remoteHistory = data.history || [];
+        const remoteWebhooks = data.webhooks || [];
         
-        // עדכון סטייט
-        setHistory(h);
-        setSavedWebhooks(w);
-        
-        // חתימה למניעת לופים
-        lastCloudHash.current = JSON.stringify({ history: h, webhooks: w });
-        
-        // סימון שהמערכת מוכנה לסנכרן החוצה
-        setTimeout(() => {
-          isInitialized.current = true;
-          setSyncStatus('success');
-        }, 500);
-      } else {
-        setSyncStatus('error');
+        setHistory(remoteHistory);
+        setSavedWebhooks(remoteWebhooks);
+        lastCloudDataHash.current = JSON.stringify({ history: remoteHistory, webhooks: remoteWebhooks });
+      } else if (response.status === 404) {
+        console.log("%c[Sync] Cloud is empty. Checking local storage...", "color: orange;");
+        // אם אין בענן, ננסה לקחת מהלוקאל של הגרסה הקודמת כחסד אחרון
+        const localH = localStorage.getItem('chatHistory');
+        const localW = localStorage.getItem('savedWebhooks');
+        if (localH) setHistory(JSON.parse(localH));
+        if (localW) setSavedWebhooks(JSON.parse(localW));
       }
+      
+      // אישור סופי: המערכת מוכנה
+      setTimeout(() => {
+        setLifecycle('READY');
+        setSyncStatus('success');
+        console.log("%c[Sync] Lifecycle is now READY. Auto-save enabled.", "color: green; font-weight: bold;");
+      }, 1000);
+
     } catch (e) {
-      console.error("CloudSync: Pull failed", e);
+      console.error("[Sync] Pull error:", e);
+      setLifecycle('ERROR');
       setSyncStatus('error');
-    } finally {
-      isPulling.current = false;
     }
   }, []);
 
-  // 2. פונקציית דחיפה לענן
-  const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
-    // הגנה 1: אל תדחוף אם לא סיימת למשוך
-    if (!isInitialized.current) {
-        console.warn("CloudSync: Blocked push - not initialized.");
-        return;
-    }
+  // 2. פונקציית שמירה - מופעלת רק כשהמצב READY
+  const persistToCloud = useCallback(async (syncKey: string, data: UserDataContainer) => {
+    if (lifecycle !== 'READY') return;
 
-    // הגנה 2: מניעת דחיפה של סטייט ריק אם היה לנו מידע קודם (השסתום המרכזי)
     const currentHash = JSON.stringify(data);
-    if (currentHash === lastCloudHash.current) return;
-    
-    if (data.history.length === 0 && data.webhooks.length === 0 && lastCloudHash.current !== "") {
-        console.warn("CloudSync: Blocked push - prevented accidental data wipe.");
+    if (currentHash === lastCloudDataHash.current) return;
+
+    // הגנה מפני מחיקה בטעות: אם הכל ריק ובעבר היה לנו מידע, אל תמחק!
+    if (data.history.length === 0 && data.webhooks.length === 0 && lastCloudDataHash.current !== "") {
+        console.warn("[Sync] Push blocked: Prevention of accidental wipe.");
         return;
     }
 
     setSyncStatus('syncing');
     try {
-      const response = await fetch(`${SYNC_PROVIDER_URL}${key}`, {
+      const res = await fetch(`${SYNC_PROVIDER_URL}${VERSION_PREFIX}${syncKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: currentHash
       });
-      
-      if (response.ok) {
-        lastCloudHash.current = currentHash;
+      if (res.ok) {
+        lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
-        console.log("CloudSync: Successfully pushed to cloud.");
+        console.log("%c[Sync] Cloud updated successfully.", "color: darkgreen;");
       } else {
         setSyncStatus('error');
       }
     } catch (e) {
       setSyncStatus('error');
     }
-  }, []);
+  }, [lifecycle]);
 
-  // 3. אפקט טעינה ראשונית
+  // 3. טעינת משתמש ב-Mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('chathub_user_v2');
+    const savedUser = localStorage.getItem('chathub_user_v3');
     if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        setUser(parsed);
-        pullFromCloud(parsed.syncKey);
+      const parsed = JSON.parse(savedUser);
+      setUser(parsed);
+      initializeData(parsed.syncKey);
     } else {
-        setIsAuthOpen(true);
-        // למשתמש חדש, אפשר להתחיל לסנכרן מיד
-        isInitialized.current = true;
+      setIsAuthOpen(true);
+      setLifecycle('READY'); // משתמש חדש מתחיל ב-READY
     }
-  }, [pullFromCloud]);
+  }, [initializeData]);
 
-  // 4. אפקט סנכרון אוטומטי (Debounced)
+  // 4. אפקט שמירה אוטומטי - Debounced
   useEffect(() => {
-    if (!user || !isInitialized.current) return;
+    if (!user || lifecycle !== 'READY') return;
 
     const timer = setTimeout(() => {
-      pushToCloud(user.syncKey, { history, webhooks: savedWebhooks });
-    }, 2500);
+      persistToCloud(user.syncKey, { history, webhooks: savedWebhooks });
+    }, 2000);
 
-    // תמיד לשמור גם ב-LocalStorage לגיבוי מקומי
+    // עדכון לוקאל תמיד לגיבוי
     localStorage.setItem('chatHistory', JSON.stringify(history));
     localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
 
     return () => clearTimeout(timer);
-  }, [history, savedWebhooks, user, pushToCloud]);
+  }, [history, savedWebhooks, user, persistToCloud, lifecycle]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
-    
-    // ניקוי לפני כניסה למשתמש חדש
-    isInitialized.current = false;
-    lastCloudHash.current = "";
-    setHistory([]);
-    setSavedWebhooks([]);
-    
+    setLifecycle('BOOTING'); // נעל שמירה
     setUser(newUser);
-    localStorage.setItem('chathub_user_v2', JSON.stringify(newUser));
+    localStorage.setItem('chathub_user_v3', JSON.stringify(newUser));
     setIsAuthOpen(false);
-    
-    pullFromCloud(syncKey);
+    initializeData(syncKey);
   };
 
   const handleLogout = () => {
-    isInitialized.current = false;
+    setLifecycle('BOOTING');
     setUser(null);
     setHistory([]);
     setSavedWebhooks([]);
-    localStorage.removeItem('chathub_user_v2');
+    localStorage.clear();
     setIsAuthOpen(true);
   };
 
@@ -193,18 +179,16 @@ export default function App() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/50 backdrop-blur-md p-2 rounded-[2rem] border border-white shadow-sm">
           <div className="flex items-center gap-2 p-1">
-            <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>
-              משגר הודעות
-            </TabButton>
-            <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>
-              מחולל סקרים
-            </TabButton>
+            <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>משגר הודעות</TabButton>
+            <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>מחולל סקרים</TabButton>
           </div>
-          <div className="px-6 flex items-center gap-2">
-             <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : syncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'}`} />
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                {syncStatus === 'syncing' ? 'מסתנכרן...' : syncStatus === 'error' ? 'שגיאת חיבור' : 'הנתונים שמורים בענן'}
-             </span>
+          <div className="px-6 flex items-center gap-3">
+             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                lifecycle === 'READY' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+             }`}>
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : syncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'}`} />
+                {lifecycle === 'READY' ? (syncStatus === 'syncing' ? 'מעדכן ענן...' : 'מסונכרן') : 'מתחבר לענן...'}
+             </div>
           </div>
         </div>
 
