@@ -9,12 +9,10 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const DISCOVERY_PROVIDER = 'https://dweet.io/get/latest/dweet/for/';
-const DISCOVERY_POST = 'https://dweet.io/dweet/for/';
-const STORAGE_PREFIX = 'ch_v13_';
+const STORAGE_PREFIX = 'ch_v14_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -28,9 +26,9 @@ export default function App() {
   
   const lastCloudDataHash = useRef<string>("");
 
-  // פונקציית עזר למשיכת מידע מהענן
+  // משיכת נתונים - רק אם יש מפתח
   const fetchCloudData = useCallback(async (id: string) => {
-    if (!id || id === 'null') return;
+    if (!id || id === 'null' || id.length < 5) return;
     setSyncStatus('syncing');
     try {
       const response = await fetch(`${DATA_PROVIDER}${id}`);
@@ -42,44 +40,15 @@ export default function App() {
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
         }
+      } else if (response.status === 404) {
+        setSyncStatus('no_key');
       }
     } catch (e) {
       setSyncStatus('local');
     }
   }, []);
 
-  // מנגנון ה"גילוי האוטומטי" - מחבר בין גוגל למידע
-  const discoverAndPull = useCallback(async (syncKey: string) => {
-    setSyncStatus('syncing');
-    try {
-      // 1. מחפשים ב"מצפן" אם יש לנו מזהה רשום
-      const discoveryRes = await fetch(`${DISCOVERY_PROVIDER}chathub_v13_${syncKey}`);
-      const discoveryData = await discoveryRes.json();
-      
-      let targetId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
-      
-      if (discoveryData.this === 'succeeded' && discoveryData.with && discoveryData.with[0]) {
-        targetId = discoveryData.with[0].content.nid;
-      }
-
-      if (targetId) {
-        setCloudId(targetId);
-        localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`, targetId);
-        await fetchCloudData(targetId);
-      }
-    } catch (e) {
-      console.warn("Discovery failed, checking local...");
-      const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
-      if (savedId) {
-        setCloudId(savedId);
-        await fetchCloudData(savedId);
-      }
-    } finally {
-      setIsReady(true);
-    }
-  }, [fetchCloudData]);
-
-  // שמירה לענן עם עדכון ה"מצפן"
+  // שמירה לענן - v14 (ללא Headers לעקיפת נטפרי)
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
     if (!isReady || !user) return;
     
@@ -92,10 +61,9 @@ export default function App() {
     try {
       const url = cloudId ? `${DATA_PROVIDER}${cloudId}` : DATA_PROVIDER;
       
-      // שימוש ב-Simple Request (ללא Headers מיוחדים) כדי לעקוף CORS בנטפרי
       const response = await fetch(url, {
         method: 'POST',
-        mode: 'cors',
+        // שולחים כטקסט נקי כדי שנטפרי לא יזהה את זה כ-API מורכב
         body: currentHash
       });
 
@@ -105,23 +73,18 @@ export default function App() {
           const newId = resData.id;
           setCloudId(newId);
           localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
-          
-          // רושמים את המזהה החדש ב"מצפן" כדי שבמחשב אחר הוא יישאב אוטומטית
-          await fetch(`${DISCOVERY_POST}chathub_v13_${user.syncKey}`, {
-            method: 'POST',
-            mode: 'no-cors', // עוקף CORS לחלוטין בשירות Dweet
-            body: JSON.stringify({ nid: newId })
-          });
         }
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
+      } else {
+        setSyncStatus('local');
       }
     } catch (e) {
       setSyncStatus('local');
     }
   }, [isReady, user, cloudId]);
 
-  // טעינה ראשונית מהדפדפן
+  // טעינה ראשונית
   useEffect(() => {
     const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
@@ -133,20 +96,27 @@ export default function App() {
     if (localUser) {
       const parsed = JSON.parse(localUser);
       setUser(parsed);
-      discoverAndPull(parsed.syncKey);
+      const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`);
+      if (savedId) {
+        setCloudId(savedId);
+        fetchCloudData(savedId);
+      } else {
+        setSyncStatus('no_key');
+      }
+      setIsReady(true);
     } else {
       setIsAuthOpen(true);
       setIsReady(true);
     }
-  }, [discoverAndPull]);
+  }, [fetchCloudData]);
 
-  // שמירה אוטומטית כל 7 שניות
+  // שמירה אוטומטית
   useEffect(() => {
     if (!user || !isReady) return;
 
     const timer = setTimeout(() => {
       saveToCloud({ history, webhooks: savedWebhooks });
-    }, 7000);
+    }, 5000);
 
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
@@ -159,7 +129,14 @@ export default function App() {
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
     setIsAuthOpen(false);
-    discoverAndPull(syncKey);
+    
+    const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
+    if (savedId) {
+      setCloudId(savedId);
+      fetchCloudData(savedId);
+    } else {
+      setSyncStatus('no_key');
+    }
   };
 
   const handleLogout = () => {
@@ -175,20 +152,21 @@ export default function App() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100" dir="rtl">
       <div className="max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-10 h-screen flex flex-col gap-6">
         
-        {/* Header Navigation */}
+        {/* Navbar */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/60 backdrop-blur-xl p-2 rounded-[2rem] border border-white shadow-xl shadow-slate-200/50">
           <div className="flex items-center gap-2 p-1">
             <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>משגר הודעות</TabButton>
             <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>מחולל סקרים</TabButton>
           </div>
           
-          <div className="px-6 flex items-center gap-4">
+          <div className="px-6">
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                syncStatus === 'local' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'
+                syncStatus === 'success' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'local' ? 'bg-amber-400' : 'bg-green-500'}`} />
-                {syncStatus === 'syncing' ? 'מזהה נתונים...' : 
-                 syncStatus === 'local' ? 'מצב מקומי בלבד' : 'מסונכרן לענן'}
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-amber-400'}`} />
+                {syncStatus === 'syncing' ? 'מסנכרן...' : 
+                 syncStatus === 'no_key' ? 'ממתין להגדרה' : 
+                 syncStatus === 'success' ? 'ענן פעיל' : 'מצב מקומי'}
              </div>
           </div>
         </div>
@@ -221,7 +199,7 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'local' ? 'error' : 'success'}
+              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'success' ? 'success' : 'error'}
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
