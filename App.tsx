@@ -12,7 +12,21 @@ type ActiveApp = 'chatSender' | 'otherApp';
 type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'local' | 'no_key';
 
 const DATA_PROVIDER = 'https://api.npoint.io/';
-const STORAGE_PREFIX = 'ch_v15_';
+const STORAGE_PREFIX = 'ch_v16_';
+
+// עזרי עוגיות לנטפרי
+const setCookie = (name: string, value: string) => {
+  const date = new Date();
+  date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
+  document.cookie = `${name}=${value};expires=${date.toUTCString()};path=/;SameSite=Lax`;
+};
+
+const getCookie = (name: string) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+  return null;
+};
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -26,18 +40,16 @@ export default function App() {
   
   const lastCloudDataHash = useRef<string>("");
 
-  // פונקציית עזר לבדיקה אם מפתח הוא תקין (ולא קוד גיבוי ארוך)
   const isValidId = (id: string | null) => {
-    if (!id || id === 'null') return false;
-    if (id.length > 30) return false; // מפתח npoint הוא בד"כ 20 תווים
-    if (id.includes('%') || id.includes('{') || id.includes('=')) return false;
-    return true;
+    if (!id || id === 'null' || id.length > 30 || id.length < 4) return false;
+    return /^[a-z0-9]+$/i.test(id);
   };
 
   const fetchCloudData = useCallback(async (id: string) => {
     if (!isValidId(id)) return;
     setSyncStatus('syncing');
     try {
+      // בנטפרי - עדיף לפעמים בלי Headers בכלל כדי למנוע Preflight
       const response = await fetch(`${DATA_PROVIDER}${id}`);
       if (response.ok) {
         const data: UserDataContainer = await response.json();
@@ -46,15 +58,16 @@ export default function App() {
           setSavedWebhooks(data.webhooks || []);
           lastCloudDataHash.current = JSON.stringify(data);
           setSyncStatus('success');
+          // נשמור גם בעוגייה ליתר ביטחון
+          if (user) setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
         }
-      } else if (response.status === 404 || response.status >= 500) {
-        setSyncStatus('no_key');
-        if (response.status >= 500) setCloudId(null); // מפתח שבור
+      } else {
+        setSyncStatus('local');
       }
     } catch (e) {
       setSyncStatus('local');
     }
-  }, []);
+  }, [user]);
 
   const saveToCloud = useCallback(async (data: UserDataContainer) => {
     if (!isReady || !user) return;
@@ -69,9 +82,9 @@ export default function App() {
       const isExisting = isValidId(cloudId);
       const url = isExisting ? `${DATA_PROVIDER}${cloudId}` : DATA_PROVIDER;
       
+      // שליחה כטקסט נקי (Simple Request) - עוקף בעיות CORS בנטפרי
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: currentHash
       });
 
@@ -81,13 +94,11 @@ export default function App() {
           const newId = resData.id;
           setCloudId(newId);
           localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
+          setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, newId);
         }
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
       } else {
-        if (response.status >= 500) {
-             setCloudId(null); // אם השרת קרס על המפתח הזה, נאפס אותו
-        }
         setSyncStatus('local');
       }
     } catch (e) {
@@ -106,9 +117,13 @@ export default function App() {
     if (localUser) {
       const parsed = JSON.parse(localUser);
       setUser(parsed);
-      const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`);
-      if (isValidId(savedId)) {
-        setCloudId(savedId);
+      
+      // ננסה להביא את ה-ID מהלוקאל או מהעוגייה
+      const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`) || 
+                      getCookie(`${STORAGE_PREFIX}cloud_id_${parsed.syncKey}`);
+      
+      if (isValidId(savedId || null)) {
+        setCloudId(savedId!);
         fetchCloudData(savedId!);
       } else {
         setSyncStatus('no_key');
@@ -137,9 +152,11 @@ export default function App() {
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
     setIsAuthOpen(false);
     
-    const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
-    if (isValidId(savedId)) {
-      setCloudId(savedId);
+    const savedId = localStorage.getItem(`${STORAGE_PREFIX}cloud_id_${syncKey}`) || 
+                    getCookie(`${STORAGE_PREFIX}cloud_id_${syncKey}`);
+    
+    if (isValidId(savedId || null)) {
+      setCloudId(savedId!);
       fetchCloudData(savedId!);
     } else {
       setSyncStatus('no_key');
@@ -152,6 +169,10 @@ export default function App() {
     setHistory([]);
     setSavedWebhooks([]);
     localStorage.clear();
+    // מחיקת עוגיות
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
     setIsAuthOpen(true);
   };
 
@@ -172,7 +193,7 @@ export default function App() {
                 <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-amber-400'}`} />
                 {syncStatus === 'syncing' ? 'בתקשורת...' : 
                  syncStatus === 'no_key' ? 'ממתין לסנכרון' : 
-                 syncStatus === 'success' ? 'ענן מחובר' : 'מצב מקומי'}
+                 syncStatus === 'success' ? 'ענן פעיל' : 'מצב מקומי'}
              </div>
           </div>
         </div>
@@ -217,12 +238,18 @@ export default function App() {
               }}
               onSetCloudId={(id) => {
                 setCloudId(id);
-                if (user) localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
+                if (user) {
+                  localStorage.setItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
+                  setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, id);
+                }
                 fetchCloudData(id);
               }}
               onResetCloud={() => {
                   setCloudId(null);
-                  if (user) localStorage.removeItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`);
+                  if (user) {
+                    localStorage.removeItem(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`);
+                    setCookie(`${STORAGE_PREFIX}cloud_id_${user.syncKey}`, "");
+                  }
                   setSyncStatus('no_key');
               }}
             />
