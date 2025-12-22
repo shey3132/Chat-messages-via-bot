@@ -14,7 +14,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
 
   const generateSyncKey = async (googleSubId: string) => {
-    const salt = "chathub_v8_netfree_fix";
+    const salt = "chathub_v9_simple_sync";
     const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -71,9 +71,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-black text-slate-900">כניסה למערכת</h2>
-          <p className="text-slate-500 mt-2 text-sm italic">מפעיל סנכרון מאובטח v8...</p>
-          {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+          <h2 className="text-2xl font-black text-slate-900">ברוכים הבאים</h2>
+          <p className="text-slate-500 mt-2 text-sm italic">מפעיל סנכרון גמיש v9...</p>
+          <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-[10px] text-indigo-700 font-bold leading-relaxed">
+            טיפ: אם הרשת שלכם חוסמת סנכרון ענן, האפליקציה תמשיך לעבוד מקומית. ניתן לגבות נתונים ידנית מהתפריט הצדדי.
+          </div>
         </div>
         <div className="flex justify-center min-h-[60px]" dir="ltr">
           {loading ? (

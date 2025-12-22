@@ -9,12 +9,12 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline' | 'blocked';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline' | 'local';
 
-// Pantry Cloud - שירות יציב יותר שלרוב פתוח בנטפרי
-const PANTRY_ID = 'd68f68e7-0841-45a8-a720-911181827464';
-const SYNC_BASE_URL = `https://getpantry.cloud/apiv1/pantry/${PANTRY_ID}/basket/`;
-const STORAGE_KEY_PREFIX = 'chathub_v8_';
+// שימוש ב-kvdb.io בגרסה 9 עם מפתח חדש
+// נמנעים מ-Content-Type: application/json כדי למנוע בקשת OPTIONS preflight שנטפרי חוסמת
+const SYNC_BASE_URL = 'https://kvdb.io/S6u8R4q2Wz9M1vXy3N5L7k/'; 
+const STORAGE_KEY_PREFIX = 'ch_v9_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -27,73 +27,79 @@ export default function App() {
   
   const lastCloudDataHash = useRef<string>("");
 
-  // 1. משיכת נתונים מהענן
+  // 1. משיכת נתונים - ללא כותרות כלל למניעת preflight
   const fetchCloudData = useCallback(async (syncKey: string) => {
     setSyncStatus('syncing');
-    console.log(`%c[Sync v8] Checking Cloud...`, "color: #4f46e5; font-weight: bold;");
+    console.log(`%c[Sync v9] Pulling from cloud...`, "color: #6366f1; font-weight: bold;");
 
     try {
       const response = await fetch(`${SYNC_BASE_URL}${STORAGE_KEY_PREFIX}${syncKey}`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          // אין headers = בקשה "פשוטה"
       });
       
       if (response.ok) {
-        const data: UserDataContainer = await response.json();
-        if (data.history) setHistory(data.history);
-        if (data.webhooks) setSavedWebhooks(data.webhooks);
-        lastCloudDataHash.current = JSON.stringify({ history: data.history || [], webhooks: data.webhooks || [] });
-        setSyncStatus('success');
-        console.log("%c[Sync v8] Cloud Synced", "color: green;");
-      } else if (response.status === 418) {
-        setSyncStatus('blocked'); // חסום בנטפרי
-        console.warn("[Sync v8] Blocked by NetFree filter");
+        const text = await response.text();
+        if (text && text !== "null" && text.trim() !== "") {
+          try {
+            const data: UserDataContainer = JSON.parse(text);
+            if (data.history) setHistory(data.history);
+            if (data.webhooks) setSavedWebhooks(data.webhooks);
+            lastCloudDataHash.current = JSON.stringify({ history: data.history || [], webhooks: data.webhooks || [] });
+            setSyncStatus('success');
+            console.log("%c[Sync v9] Cloud Sync Complete", "color: green;");
+          } catch (pe) {
+            console.error("[Sync v9] Parse error", pe);
+          }
+        } else {
+          setSyncStatus('idle');
+        }
       } else {
-        setSyncStatus('idle'); // כנראה סל חדש
+        // בנטפרי/שגיאה נשארים במצב מקומי
+        setSyncStatus('local');
       }
     } catch (e) {
-      setSyncStatus('offline');
-      console.warn("[Sync v8] Working in offline mode");
+      setSyncStatus('local');
+      console.warn("[Sync v9] Cloud unreachable, using local mode.");
     } finally {
       setIsReady(true);
     }
   }, []);
 
-  // 2. שמירת נתונים לענן
+  // 2. שמירת נתונים - ללא כותרות כלל
   const saveToCloud = useCallback(async (syncKey: string, data: UserDataContainer) => {
-    if (!isReady || syncStatus === 'blocked') return;
+    if (!isReady) return;
 
     const currentHash = JSON.stringify(data);
     if (currentHash === lastCloudDataHash.current) return;
+    
+    // מניעת דריסה של מידע קיים ע"י סטייט ריק בטעות
     if (data.history.length === 0 && data.webhooks.length === 0 && lastCloudDataHash.current !== "") return;
 
     setSyncStatus('syncing');
     try {
-      // Pantry משתמש ב-POST ליצירה ו-PUT לעדכון. נשתמש ב-POST כברירת מחדל
+      // שליחה כטקסט נקי עוקפת את רוב חסימות ה-CORS בנטפרי
       const response = await fetch(`${SYNC_BASE_URL}${STORAGE_KEY_PREFIX}${syncKey}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: currentHash
       });
       
       if (response.ok) {
         lastCloudDataHash.current = currentHash;
         setSyncStatus('success');
-      } else if (response.status === 418) {
-        setSyncStatus('blocked');
       } else {
-        setSyncStatus('error');
+        setSyncStatus('local');
       }
     } catch (e) {
-      setSyncStatus('offline');
+      setSyncStatus('local');
     }
-  }, [isReady, syncStatus]);
+  }, [isReady]);
 
-  // 3. טעינה ראשונית - מהירות היא הכל
+  // 3. טעינה ראשונית - LocalStorage תמיד ראשון
   useEffect(() => {
-    const localUser = localStorage.getItem('chathub_user_v8');
-    const localH = localStorage.getItem('chatHistory_v8');
-    const localW = localStorage.getItem('savedWebhooks_v8');
+    const localUser = localStorage.getItem('ch_user_v9');
+    const localH = localStorage.getItem('ch_history_v9');
+    const localW = localStorage.getItem('ch_webhooks_v9');
 
     if (localH) setHistory(JSON.parse(localH));
     if (localW) setSavedWebhooks(JSON.parse(localW));
@@ -108,16 +114,16 @@ export default function App() {
     }
   }, [fetchCloudData]);
 
-  // 4. שמירה אוטומטית למחשב ולענן
+  // 4. שמירה אוטומטית (Debounced)
   useEffect(() => {
     if (!user || !isReady) return;
 
     const timer = setTimeout(() => {
       saveToCloud(user.syncKey, { history, webhooks: savedWebhooks });
-    }, 2500);
+    }, 2000);
 
-    localStorage.setItem('chatHistory_v8', JSON.stringify(history));
-    localStorage.setItem('savedWebhooks_v8', JSON.stringify(savedWebhooks));
+    localStorage.setItem('ch_history_v9', JSON.stringify(history));
+    localStorage.setItem('ch_webhooks_v9', JSON.stringify(savedWebhooks));
 
     return () => clearTimeout(timer);
   }, [history, savedWebhooks, user, saveToCloud, isReady]);
@@ -125,7 +131,7 @@ export default function App() {
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
-    localStorage.setItem('chathub_user_v8', JSON.stringify(newUser));
+    localStorage.setItem('ch_user_v9', JSON.stringify(newUser));
     setIsAuthOpen(false);
     fetchCloudData(syncKey);
   };
@@ -150,18 +156,11 @@ export default function App() {
           </div>
           
           <div className="px-6 flex items-center gap-3">
-             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                syncStatus === 'blocked' ? 'bg-amber-100 text-amber-700 animate-pulse' :
-                syncStatus === 'error' || syncStatus === 'offline' ? 'bg-slate-100 text-slate-500' : 'bg-green-50 text-green-600'
+             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
+                syncStatus === 'local' ? 'bg-slate-100 text-slate-500' : 'bg-green-50 text-green-600'
              }`}>
-                <div className={`w-2.2 h-2.2 rounded-full ${
-                    syncStatus === 'syncing' ? 'bg-indigo-400 animate-bounce' : 
-                    syncStatus === 'blocked' ? 'bg-amber-500' :
-                    syncStatus === 'error' || syncStatus === 'offline' ? 'bg-slate-400' : 'bg-green-500'
-                }`} />
-                {syncStatus === 'syncing' ? 'מנסה לסנכרן...' : 
-                 syncStatus === 'blocked' ? 'סנכרון מושהה (נטפרי?)' :
-                 syncStatus === 'error' || syncStatus === 'offline' ? 'עובד מקומית' : 'מסונכרן לענן'}
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'local' ? 'bg-slate-400' : 'bg-green-500'}`} />
+                {syncStatus === 'syncing' ? 'מעדכן ענן...' : syncStatus === 'local' ? 'מצב מקומי (ללא ענן)' : 'מסונכרן לענן'}
              </div>
           </div>
         </div>
@@ -194,11 +193,15 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus={syncStatus === 'syncing' ? 'syncing' : (syncStatus === 'error' || syncStatus === 'offline' || syncStatus === 'blocked') ? 'error' : 'success'}
+              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'local' ? 'error' : 'success'}
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
               onLogout={handleLogout}
+              onImport={(data) => {
+                  setHistory(data.history);
+                  setSavedWebhooks(data.webhooks);
+              }}
             />
           </div>
         </div>
