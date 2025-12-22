@@ -2,8 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback, ChangeEvent } from 'react';
 import { ChatMessagePayload, Card, Section, Widget, Button, SavedWebhook } from '../types';
 
-// --- COMPONENTS ---
-
+// --- Webhook Selector Component ---
 interface WebhookSelectorProps {
   currentUrl: string;
   onSelect: (url: string) => void;
@@ -36,7 +35,7 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                       type="text" 
                       value={currentUrl} 
                       onChange={(e) => onSelect(e.target.value)} 
-                      placeholder="https://chat.googleapis.com/v1/spaces/..." 
+                      placeholder="הדבק כאן את ה-Webhook URL..." 
                       className="block w-full rounded-lg border-slate-300 bg-white/50 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 transition duration-150 ease-in-out pr-10"
                       autoComplete="off"
                     />
@@ -56,7 +55,6 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                 </button>
             </div>
 
-            {/* Dropdown List */}
             {isOpen && (
                 <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="p-2 border-b border-slate-50 bg-slate-50/50">
@@ -88,7 +86,6 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
                 </div>
             )}
 
-            {/* Save Dialog */}
             {isSaving && (
                 <div className="absolute z-50 left-0 mt-2 p-4 bg-white rounded-2xl shadow-2xl border border-indigo-100 w-64 animate-in zoom-in duration-200">
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">כינוי לוובוק</label>
@@ -256,22 +253,14 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
       return;
     }
 
-    const payloadString = JSON.stringify(payload);
-    if (payloadSize > PAYLOAD_SIZE_LIMIT) {
-        setLog(`שגיאה: ההודעה גדולה מדי.`);
-        return;
-    }
-
     setLog(`שולח...`);
     
     try {
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: payloadString
+        body: JSON.stringify(payload)
       });
-      const responseBody = await response.text();
-
       if (!response.ok) {
         setLog(`שגיאה בשליחה: HTTP ${response.status}`);
       } else {
@@ -369,18 +358,18 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
           
           <div className="pt-4">
             <label className={labelClasses}>תצוגה מקדימה חיה</label>
-            <div className="mt-2 border-2 border-dashed border-slate-300 rounded-xl p-4 min-h-[250px] bg-slate-100/50">
+            <div className="mt-2 border-2 border-dashed border-slate-300 rounded-xl p-4 min-h-[250px] bg-slate-100/50 overflow-hidden">
                 {payload ? (
                     <div className="flex flex-col gap-4">
                     {payload.text ? (
-                        <div className="whitespace-pre-wrap p-4">{payload.text}</div>
+                        <div className="whitespace-pre-wrap p-4 text-sm">{payload.text}</div>
                     ) : (
                         payload.cards?.map((card, idx) => (
-                            <div key={idx} className="preview-card border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full">
+                            <div key={idx} className="preview-card border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full text-sm">
                                 {card.header && (
                                     <div className="card-header p-4">
-                                        <strong className="text-lg font-semibold block text-slate-900">{card.header.title}</strong>
-                                        <span className="text-sm text-slate-500 block mt-0.5">{card.header.subtitle}</span>
+                                        <strong className="text-base font-semibold block text-slate-900">{card.header.title}</strong>
+                                        <span className="text-xs text-slate-500 block mt-0.5">{card.header.subtitle}</span>
                                         {card.header.imageUrl && <img src={card.header.imageUrl} className="w-full rounded-lg mt-3" />}
                                     </div>
                                 )}
@@ -404,13 +393,13 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
 
           <div>
             <label className={labelClasses}>לוג</label>
-            <pre className="mt-2 p-4 bg-slate-800 text-slate-200 text-sm rounded-lg h-32 overflow-auto whitespace-pre-wrap font-mono">{log}</pre>
+            <pre className="mt-2 p-4 bg-slate-800 text-slate-200 text-xs rounded-lg h-24 overflow-auto whitespace-pre-wrap font-mono">{log}</pre>
           </div>
 
         </div>
         
         <div className="pt-6 border-t border-slate-200 mt-auto flex justify-between items-center">
-          <div className="text-sm text-slate-500 space-y-1">
+          <div className="text-xs text-slate-500">
              <p>גודל הודעה: <span className={`font-bold ${isOversized ? 'text-red-600' : 'text-slate-700'}`}>{formatSize(payloadSize)} / {formatSize(PAYLOAD_SIZE_LIMIT)}</span></p>
           </div>
           <button 

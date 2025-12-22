@@ -20,14 +20,38 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
 
+  // טעינה ראשונית מ-LocalStorage
+  useEffect(() => {
+    const savedUser = localStorage.getItem('chathub_user');
+    const storedHistory = localStorage.getItem('chatHistory');
+    const storedWebhooks = localStorage.getItem('savedWebhooks');
+
+    if (storedHistory) setHistory(JSON.parse(storedHistory));
+    if (storedWebhooks) setSavedWebhooks(JSON.parse(storedWebhooks));
+    if (savedUser) setUser(JSON.parse(savedUser));
+    else setIsAuthOpen(true);
+  }, []);
+
+  // סנכרון אוטומטי ל-LocalStorage בכל שינוי
+  useEffect(() => {
+    if (history.length > 0) localStorage.setItem('chatHistory', JSON.stringify(history));
+  }, [history]);
+
+  useEffect(() => {
+    if (savedWebhooks.length > 0) localStorage.setItem('savedWebhooks', JSON.stringify(savedWebhooks));
+  }, [savedWebhooks]);
+
   const pushToCloud = useCallback(async (key: string, data: UserDataContainer) => {
     if (!key) return;
     try {
       await fetch(`${SYNC_PROVIDER_URL}${key}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-    } catch (err) {}
+    } catch (err) {
+      console.error('Cloud sync failed:', err);
+    }
   }, []);
 
   const pullFromCloud = useCallback(async (key: string) => {
@@ -37,7 +61,6 @@ export default function App() {
       const response = await fetch(`${SYNC_PROVIDER_URL}${key}`);
       if (response.ok) {
         const remoteData = await response.json();
-        
         let cloudHistory: HistoryItem[] = [];
         let cloudWebhooks: SavedWebhook[] = [];
 
@@ -48,22 +71,19 @@ export default function App() {
           cloudWebhooks = remoteData.webhooks || [];
         }
 
-        setHistory(prev => {
-          const combined = [...prev, ...cloudHistory];
-          const unique = Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 50);
-          localStorage.setItem('chatHistory', JSON.stringify(unique));
-          return unique;
-        });
+        if (cloudHistory.length > 0 || cloudWebhooks.length > 0) {
+          setHistory(prev => {
+            const combined = [...prev, ...cloudHistory];
+            return Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, 50);
+          });
 
-        setSavedWebhooks(prev => {
+          setSavedWebhooks(prev => {
             const combined = [...prev, ...cloudWebhooks];
-            const unique = Array.from(new Map(combined.map(item => [item.url, item])).values());
-            localStorage.setItem('savedWebhooks', JSON.stringify(unique));
-            return unique;
-        });
-
+            return Array.from(new Map(combined.map(item => [item.url, item])).values());
+          });
+        }
         setSyncStatus('success');
       } else {
         setSyncStatus('idle');
@@ -73,45 +93,24 @@ export default function App() {
     }
   }, []);
 
+  // משיכה מהענן ברגע שהמשתמש מזוהה
   useEffect(() => {
-    const savedUser = localStorage.getItem('chathub_user');
-    const storedHistory = localStorage.getItem('chatHistory');
-    const storedWebhooks = localStorage.getItem('savedWebhooks');
-
-    if (storedHistory) setHistory(JSON.parse(storedHistory));
-    if (storedWebhooks) setSavedWebhooks(JSON.parse(storedWebhooks));
-
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      pullFromCloud(parsedUser.syncKey);
-    } else {
-      setIsAuthOpen(true);
-    }
-  }, [pullFromCloud]);
+    if (user?.syncKey) pullFromCloud(user.syncKey);
+  }, [user?.syncKey, pullFromCloud]);
 
   const saveHistory = useCallback((payloadToSave: ChatMessagePayload) => {
-    setHistory(prevHistory => {
+    setHistory(prev => {
       const newItem: HistoryItem = { timestamp: Date.now(), payload: payloadToSave };
-      const updatedHistory = [newItem, ...prevHistory].slice(0, 50);
-      localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
-      
-      if (user?.syncKey) {
-        pushToCloud(user.syncKey, { history: updatedHistory, webhooks: savedWebhooks });
-      }
-      
-      return updatedHistory;
+      const updated = [newItem, ...prev].slice(0, 50);
+      if (user?.syncKey) pushToCloud(user.syncKey, { history: updated, webhooks: savedWebhooks });
+      return updated;
     });
   }, [user, savedWebhooks, pushToCloud]);
 
   const addWebhook = useCallback((webhook: SavedWebhook) => {
     setSavedWebhooks(prev => {
-        const filtered = prev.filter(w => w.url !== webhook.url);
-        const updated = [webhook, ...filtered];
-        localStorage.setItem('savedWebhooks', JSON.stringify(updated));
-        if (user?.syncKey) {
-            pushToCloud(user.syncKey, { history, webhooks: updated });
-        }
+        const updated = [webhook, ...prev.filter(w => w.url !== webhook.url)];
+        if (user?.syncKey) pushToCloud(user.syncKey, { history, webhooks: updated });
         return updated;
     });
   }, [user, history, pushToCloud]);
@@ -119,10 +118,7 @@ export default function App() {
   const deleteWebhook = useCallback((id: string) => {
     setSavedWebhooks(prev => {
         const updated = prev.filter(w => w.id !== id);
-        localStorage.setItem('savedWebhooks', JSON.stringify(updated));
-        if (user?.syncKey) {
-            pushToCloud(user.syncKey, { history, webhooks: updated });
-        }
+        if (user?.syncKey) pushToCloud(user.syncKey, { history, webhooks: updated });
         return updated;
     });
   }, [user, history, pushToCloud]);
@@ -132,18 +128,12 @@ export default function App() {
     setUser(userData);
     localStorage.setItem('chathub_user', JSON.stringify(userData));
     setIsAuthOpen(false);
-    pullFromCloud(syncKey);
   };
 
   const handleLogout = () => {
     if(confirm('בטוח שברצונך להתנתק?')) {
-      localStorage.removeItem('chathub_user');
-      localStorage.removeItem('chatHistory');
-      localStorage.removeItem('savedWebhooks');
-      setUser(null);
-      setHistory([]);
-      setSavedWebhooks([]);
-      setIsAuthOpen(true);
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
@@ -166,12 +156,8 @@ export default function App() {
           </div>
 
           <nav className="flex items-center justify-center p-1.5 bg-slate-100/80 backdrop-blur rounded-[1.5rem] border border-slate-200/50">
-            <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>
-              🚀 הודעות
-            </TabButton>
-            <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>
-              📊 סקרים
-            </TabButton>
+            <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>🚀 הודעות</TabButton>
+            <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>📊 סקרים</TabButton>
           </nav>
 
           <div className="flex items-center gap-4">
@@ -179,7 +165,7 @@ export default function App() {
                <div className="flex items-center gap-3 bg-slate-50 pl-4 py-1.5 pr-1.5 rounded-full border border-slate-100 shadow-sm">
                   <div className="flex flex-col items-end">
                     <span className="text-xs font-extrabold text-slate-800 leading-none">{user.username}</span>
-                    <span className="text-[9px] text-green-500 font-bold mt-0.5">מחובר ומסונכרן</span>
+                    <span className="text-[9px] text-green-500 font-bold mt-0.5">מחובר</span>
                   </div>
                   {user.avatar ? (
                     <img src={user.avatar} className="w-8 h-8 rounded-full border-2 border-white shadow-sm" alt="Profile" />
