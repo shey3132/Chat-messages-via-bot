@@ -9,8 +9,11 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
 
-const STORAGE_PREFIX = 'ch_v31_';
+const STORAGE_PREFIX = 'ch_v32_';
+const PANTRY_ID = '964e526a-93be-46be-9602-094031633458'; // Pantry ID ייעודי ל-ChatHub
+const BASE_URL = `https://getpantry.cloud/apiv1/pantry/${PANTRY_ID}/basket/`;
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -18,9 +21,65 @@ export default function App() {
   const [savedWebhooks, setSavedWebhooks] = useState<SavedWebhook[]>([]);
   const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [isReady, setIsReady] = useState(false);
+  
+  const lastSyncHash = useRef<string>("");
+  const isSyncing = useRef<boolean>(false);
 
-  // טעינה מ-LocalStorage (מהיר) וסנכרון ל-State
+  // פונקציית סנכרון מול Pantry
+  const syncWithCloud = useCallback(async (syncKey: string, dataToSave?: UserDataContainer) => {
+    if (isSyncing.current) return;
+    isSyncing.current = true;
+    setSyncStatus('syncing');
+
+    try {
+      if (dataToSave) {
+        // שמירה לענן
+        const currentHash = JSON.stringify(dataToSave);
+        if (currentHash === lastSyncHash.current) {
+          setSyncStatus('success');
+          isSyncing.current = false;
+          return;
+        }
+
+        await fetch(`${BASE_URL}${syncKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: currentHash
+        });
+        lastSyncHash.current = currentHash;
+      } else {
+        // משיכה מהענן
+        const response = await fetch(`${BASE_URL}${syncKey}`);
+        if (response.ok) {
+          const cloudData: UserDataContainer = await response.json();
+          if (cloudData) {
+            setHistory(prev => {
+                const combined = [...(cloudData.history || []), ...prev];
+                const unique = Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
+                                    .sort((a,b) => b.timestamp - a.timestamp)
+                                    .slice(0, 100);
+                return unique;
+            });
+            setSavedWebhooks(prev => {
+                const combined = [...(cloudData.webhooks || []), ...prev];
+                return Array.from(new Map(combined.map(item => [item.url, item])).values());
+            });
+            lastSyncHash.current = JSON.stringify(cloudData);
+          }
+        }
+      }
+      setSyncStatus('success');
+    } catch (e) {
+      console.error("Sync failed", e);
+      setSyncStatus('error');
+    } finally {
+      isSyncing.current = false;
+    }
+  }, []);
+
+  // טעינה ראשונית
   useEffect(() => {
     const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
@@ -30,74 +89,42 @@ export default function App() {
     if (localW) { try { setSavedWebhooks(JSON.parse(localW)); } catch(e){} }
 
     if (localUser) {
-      setUser(JSON.parse(localUser));
+      const parsed = JSON.parse(localUser);
+      setUser(parsed);
+      syncWithCloud(parsed.syncKey);
       setIsReady(true);
     } else {
       setIsAuthOpen(true);
       setIsReady(true);
     }
-  }, []);
+  }, [syncWithCloud]);
 
-  // שמירה אוטומטית לזיכרון המקומי בכל שינוי
+  // לופ שמירה אוטומטי (Debounced)
   useEffect(() => {
-    if (!isReady) return;
+    if (!user || !isReady) return;
+    
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
-  }, [history, savedWebhooks, isReady]);
+
+    const timer = setTimeout(() => {
+      syncWithCloud(user.syncKey, { history, webhooks: savedWebhooks });
+    }, 3000); 
+    
+    return () => clearTimeout(timer);
+  }, [history, savedWebhooks, user, syncWithCloud, isReady]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
+    syncWithCloud(syncKey);
     setIsAuthOpen(false);
   };
 
   const handleLogout = () => {
-    if (confirm('להתנתק? המידע המקומי יימחק. וודא שיש לך הודעת גיבוי בצ\'אט.')) {
+    if (confirm('להתנתק? המידע יישמר בענן ויימחק מהדפדפן הנוכחי.')) {
         localStorage.clear();
         window.location.reload();
-    }
-  };
-
-  // פונקציית הגיבוי לצ'אט - שולחת את כל המידע כהודעה
-  const backupToChat = async (url: string) => {
-    if (!url) return alert('חובה להזין Webhook לשליחת הגיבוי');
-    
-    const data: UserDataContainer = { history, webhooks: savedWebhooks };
-    const encodedData = btoa(encodeURIComponent(JSON.stringify(data)));
-    
-    const payload = {
-        text: `📦 *ChatHub v31 - גיבוי מערכת*\nמאת: ${user?.username}\nתאריך: ${new Date().toLocaleString('he-IL')}\n\nכדי לשחזר, העתיקו את הקוד למטה והדביקו באפליקציה:\n\n\`\`\`\nCH_SYNC:${encodedData}\n\`\`\``
-    };
-
-    try {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (res.ok) alert('הגיבוי נשלח לצ\'אט בהצלחה!');
-        else alert('שגיאה בשליחת הגיבוי לצ\'אט');
-    } catch (e) {
-        alert('שגיאת רשת בשליחת הגיבוי');
-    }
-  };
-
-  const restoreFromCode = (code: string) => {
-    try {
-        if (!code.startsWith('CH_SYNC:')) return alert('קוד גיבוי לא תקין');
-        const encoded = code.replace('CH_SYNC:', '').trim();
-        const decoded = JSON.parse(decodeURIComponent(atob(encoded)));
-        
-        if (decoded.history || decoded.webhooks) {
-            if (confirm('האם לשחזר את המידע? המידע הקיים יידרס.')) {
-                setHistory(decoded.history || []);
-                setSavedWebhooks(decoded.webhooks || []);
-                alert('השחזור הושלם בהצלחה!');
-            }
-        }
-    } catch (e) {
-        alert('שגיאה בפענוח הקוד. וודא שהעתקת את כל הטקסט במדויק.');
     }
   };
 
@@ -112,9 +139,16 @@ export default function App() {
           </div>
           
           <div className="px-6 flex items-center gap-4">
-             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 border border-indigo-100">
-                <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                מצב גיבוי מקומי פעיל (v31)
+             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
+                syncStatus === 'syncing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                syncStatus === 'error' ? 'bg-red-50 text-red-600 border border-red-100' :
+                'bg-slate-100 text-slate-500 border border-slate-200'
+             }`}>
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : syncStatus === 'error' ? 'bg-red-500' : 'bg-slate-400'}`} />
+                {syncStatus === 'syncing' ? 'מסנכרן ענן...' : 
+                 syncStatus === 'success' ? 'המידע מגובה בענן' : 
+                 syncStatus === 'error' ? 'שגיאת סנכרון' : 'מחובר'}
              </div>
           </div>
         </div>
@@ -147,11 +181,11 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus="idle"
+              syncStatus={syncStatus}
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
-              cloudId="Local Device"
+              cloudId={user?.syncKey || null}
               onLogout={handleLogout}
               onImportFile={(e) => {
                   const file = e.target.files?.[0];
@@ -172,18 +206,12 @@ export default function App() {
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `chathub_backup_${new Date().toLocaleDateString()}.json`;
+                  a.download = `chathub_backup.json`;
                   a.click();
               }}
-              onSetCloudId={() => {
-                  const code = prompt('הדבק כאן את קוד הגיבוי מהצ\'אט:');
-                  if (code) restoreFromCode(code);
-              }}
-              onResetCloud={() => {
-                  const url = prompt('הדבק Webhook URL למשלוח גיבוי:');
-                  if (url) backupToChat(url);
-              }}
-              onManualSync={() => {}}
+              onSetCloudId={() => {}} 
+              onResetCloud={() => {}} 
+              onManualSync={() => user && syncWithCloud(user.syncKey)}
             />
           </div>
         </div>
