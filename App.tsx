@@ -9,11 +9,9 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'no_folder';
 
-const STORAGE_PREFIX = 'ch_v32_';
-const PANTRY_ID = '964e526a-93be-46be-9602-094031633458'; // Pantry ID ייעודי ל-ChatHub
-const BASE_URL = `https://getpantry.cloud/apiv1/pantry/${PANTRY_ID}/basket/`;
+const STORAGE_PREFIX = 'ch_v33_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -21,65 +19,70 @@ export default function App() {
   const [savedWebhooks, setSavedWebhooks] = useState<SavedWebhook[]>([]);
   const [user, setUser] = useState<{username: string, syncKey: string, avatar?: string} | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('no_folder');
   const [isReady, setIsReady] = useState(false);
   
-  const lastSyncHash = useRef<string>("");
-  const isSyncing = useRef<boolean>(false);
+  const fileHandle = useRef<any>(null);
+  const lastSavedHash = useRef<string>("");
 
-  // פונקציית סנכרון מול Pantry
-  const syncWithCloud = useCallback(async (syncKey: string, dataToSave?: UserDataContainer) => {
-    if (isSyncing.current) return;
-    isSyncing.current = true;
-    setSyncStatus('syncing');
-
+  // פונקציה לחיבור תיקייה / קובץ סנכרון
+  const connectSyncFile = async () => {
     try {
-      if (dataToSave) {
-        // שמירה לענן
-        const currentHash = JSON.stringify(dataToSave);
-        if (currentHash === lastSyncHash.current) {
-          setSyncStatus('success');
-          isSyncing.current = false;
-          return;
-        }
+      // @ts-ignore
+      const [handle] = await window.showOpenFilePicker({
+        types: [{
+          description: 'ChatHub Sync File',
+          accept: { 'application/json': ['.json'] },
+        }],
+        multiple: false
+      }).catch(async () => {
+         // אם הקובץ לא קיים, נבקש ליצור אחד
+         // @ts-ignore
+         return [await window.showSaveFilePicker({
+            suggestedName: 'chathub_sync.json',
+            types: [{ description: 'ChatHub Sync File', accept: { 'application/json': ['.json'] } }]
+         })];
+      });
 
-        await fetch(`${BASE_URL}${syncKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: currentHash
-        });
-        lastSyncHash.current = currentHash;
-      } else {
-        // משיכה מהענן
-        const response = await fetch(`${BASE_URL}${syncKey}`);
-        if (response.ok) {
-          const cloudData: UserDataContainer = await response.json();
-          if (cloudData) {
-            setHistory(prev => {
-                const combined = [...(cloudData.history || []), ...prev];
-                const unique = Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
-                                    .sort((a,b) => b.timestamp - a.timestamp)
-                                    .slice(0, 100);
-                return unique;
-            });
-            setSavedWebhooks(prev => {
-                const combined = [...(cloudData.webhooks || []), ...prev];
-                return Array.from(new Map(combined.map(item => [item.url, item])).values());
-            });
-            lastSyncHash.current = JSON.stringify(cloudData);
-          }
-        }
+      fileHandle.current = handle;
+      
+      // קריאת המידע הקיים מהקובץ
+      const file = await handle.getFile();
+      const content = await file.text();
+      if (content) {
+        const data: UserDataContainer = JSON.parse(content);
+        if (data.history) setHistory(data.history);
+        if (data.webhooks) setSavedWebhooks(data.webhooks);
+        lastSavedHash.current = JSON.stringify(data);
       }
+      
       setSyncStatus('success');
     } catch (e) {
-      console.error("Sync failed", e);
+      console.error("File access denied or failed", e);
       setSyncStatus('error');
-    } finally {
-      isSyncing.current = false;
+    }
+  };
+
+  const saveToFile = useCallback(async (data: UserDataContainer) => {
+    if (!fileHandle.current) return;
+    
+    const currentHash = JSON.stringify(data);
+    if (currentHash === lastSavedHash.current) return;
+
+    try {
+      setSyncStatus('syncing');
+      // @ts-ignore
+      const writable = await fileHandle.current.createWritable();
+      await writable.write(currentHash);
+      await writable.close();
+      lastSavedHash.current = currentHash;
+      setSyncStatus('success');
+    } catch (e) {
+      console.error("Failed to save to file", e);
+      setSyncStatus('error');
     }
   }, []);
 
-  // טעינה ראשונית
   useEffect(() => {
     const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
@@ -89,43 +92,30 @@ export default function App() {
     if (localW) { try { setSavedWebhooks(JSON.parse(localW)); } catch(e){} }
 
     if (localUser) {
-      const parsed = JSON.parse(localUser);
-      setUser(parsed);
-      syncWithCloud(parsed.syncKey);
+      setUser(JSON.parse(localUser));
       setIsReady(true);
     } else {
       setIsAuthOpen(true);
       setIsReady(true);
     }
-  }, [syncWithCloud]);
+  }, []);
 
-  // לופ שמירה אוטומטי (Debounced)
   useEffect(() => {
-    if (!user || !isReady) return;
-    
+    if (!isReady) return;
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
 
     const timer = setTimeout(() => {
-      syncWithCloud(user.syncKey, { history, webhooks: savedWebhooks });
-    }, 3000); 
-    
+      saveToFile({ history, webhooks: savedWebhooks });
+    }, 2000);
     return () => clearTimeout(timer);
-  }, [history, savedWebhooks, user, syncWithCloud, isReady]);
+  }, [history, savedWebhooks, isReady, saveToFile]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
-    syncWithCloud(syncKey);
     setIsAuthOpen(false);
-  };
-
-  const handleLogout = () => {
-    if (confirm('להתנתק? המידע יישמר בענן ויימחק מהדפדפן הנוכחי.')) {
-        localStorage.clear();
-        window.location.reload();
-    }
   };
 
   return (
@@ -139,17 +129,19 @@ export default function App() {
           </div>
           
           <div className="px-6 flex items-center gap-4">
-             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+             <button 
+                onClick={connectSyncFile}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
                 syncStatus === 'syncing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                syncStatus === 'error' ? 'bg-red-50 text-red-600 border border-red-100' :
-                'bg-slate-100 text-slate-500 border border-slate-200'
+                syncStatus === 'no_folder' ? 'bg-amber-50 text-amber-600 border border-amber-100 animate-pulse' :
+                'bg-red-50 text-red-600 border border-red-100'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : syncStatus === 'error' ? 'bg-red-500' : 'bg-slate-400'}`} />
-                {syncStatus === 'syncing' ? 'מסנכרן ענן...' : 
-                 syncStatus === 'success' ? 'המידע מגובה בענן' : 
-                 syncStatus === 'error' ? 'שגיאת סנכרון' : 'מחובר'}
-             </div>
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-amber-400'}`} />
+                {syncStatus === 'syncing' ? 'שומר שינויים...' : 
+                 syncStatus === 'success' ? 'סנכרון פעיל' : 
+                 syncStatus === 'no_folder' ? 'לחץ לחיבור תיקיית סנכרון' : 'שגיאת גישה'}
+             </button>
           </div>
         </div>
 
@@ -181,37 +173,17 @@ export default function App() {
           <div className="w-full lg:w-96 flex-shrink-0">
             <HistorySidebar 
               history={history} 
-              syncStatus={syncStatus}
+              syncStatus={syncStatus === 'syncing' ? 'syncing' : syncStatus === 'success' ? 'success' : 'idle'}
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
-              cloudId={user?.syncKey || null}
-              onLogout={handleLogout}
-              onImportFile={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = (ev) => {
-                    try {
-                        const data = JSON.parse(ev.target?.result as string);
-                        setHistory(data.history || []);
-                        setSavedWebhooks(data.webhooks || []);
-                    } catch(e) { alert('קובץ לא תקין'); }
-                  };
-                  reader.readAsText(file);
-              }}
-              onExportFile={() => {
-                  const data = JSON.stringify({ history, webhooks: savedWebhooks });
-                  const blob = new Blob([data], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `chathub_backup.json`;
-                  a.click();
-              }}
-              onSetCloudId={() => {}} 
-              onResetCloud={() => {}} 
-              onManualSync={() => user && syncWithCloud(user.syncKey)}
+              cloudId={fileHandle.current ? "מחובר לקובץ" : null}
+              onLogout={() => { localStorage.clear(); window.location.reload(); }}
+              onImportFile={(e) => {}} 
+              onExportFile={() => {}} 
+              onSetCloudId={connectSyncFile}
+              onResetCloud={() => { fileHandle.current = null; setSyncStatus('no_folder'); }}
+              onManualSync={() => {}}
             />
           </div>
         </div>
