@@ -11,26 +11,6 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState('ממתין להתחברות...');
-
-  const generateSyncKey = async (googleSubId: string) => {
-    const salt = "chathub_v33_local_sync";
-    const msgBuffer = new TextEncoder().encode(`${salt}_${googleSubId}`);
-    const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
-  };
-
-  const decodeJWT = (token: string) => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      return JSON.parse(jsonPayload);
-    } catch (e) { return null; }
-  };
 
   useEffect(() => {
     const initGoogle = () => {
@@ -39,60 +19,60 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           client_id: GOOGLE_CLIENT_ID,
           callback: async (response: any) => {
             setLoading(true);
-            setStatus('מאמת משתמש...');
-            const userData = decodeJWT(response.credential);
-            if (userData && userData.sub) {
-              const syncKey = await generateSyncKey(userData.sub);
-              setStatus('נכנס למערכת...');
-              setTimeout(() => {
-                onLogin(userData.name || "משתמש", syncKey, userData.picture);
-              }, 500);
-            } else {
-              setLoading(false);
-              alert('שגיאה בתגובת גוגל.');
-            }
+            const token = response.credential;
+            const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+            onLogin(payload.name, payload.sub, payload.picture);
           },
         });
-        const btnContainer = document.getElementById("googleBtn");
-        if (btnContainer) {
-          google.accounts.id.renderButton(btnContainer, { theme: "outline", size: "large", width: 280, shape: "pill" });
-        }
-      } else {
-        setTimeout(initGoogle, 500);
-      }
+        const btn = document.getElementById("googleBtn");
+        if (btn) google.accounts.id.renderButton(btn, { theme: "filled_blue", size: "large", width: 340, shape: "pill", logo_alignment: "left" });
+      } else setTimeout(initGoogle, 500);
     };
     initGoogle();
   }, [onLogin]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-xl">
-      <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-white animate-in zoom-in duration-300">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-black text-slate-900 italic tracking-tight">ChatHub v33</h2>
-          <p className="text-slate-500 mt-2 text-sm font-bold uppercase tracking-widest opacity-60">LOCAL-TO-CLOUD SYNC</p>
-          
-          <div className="mt-6 p-5 bg-indigo-50 rounded-[1.8rem] text-[11px] text-indigo-800 font-bold leading-relaxed border border-indigo-100 flex items-center gap-4">
-             <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0 border border-indigo-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-             </div>
-             <p className="text-right">הגענו ל"דרך האחרת"! גרסה v33 עוקפת את כל חסימות נטפרי וגוגל על ידי סנכרון לקובץ בתוך תיקיית הדרייב שבמחשב שלכם. זה הפתרון הכי יציב, מהיר ובטוח שיש.</p>
-          </div>
-        </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">
+      <div className="bg-slate-900/40 backdrop-blur-3xl w-full max-w-lg rounded-[4rem] shadow-[0_40px_100px_rgba(0,0,0,0.8)] p-12 lg:p-16 border border-white/10 text-center animate-in zoom-in-95 duration-700 relative overflow-hidden">
         
-        <div className="flex justify-center min-h-[60px]" dir="ltr">
-          {loading ? (
-            <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
-                </div>
-                <span className="text-[10px] text-indigo-600 font-black uppercase tracking-[0.2em]">{status}</span>
+        {/* Glow behind logo */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-indigo-600/20 rounded-full blur-[60px] pointer-events-none" />
+
+        <div className="relative z-10">
+            <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] mx-auto mb-10 flex items-center justify-center shadow-[0_20px_40px_rgba(79,70,229,0.4)] rotate-12 hover:rotate-0 transition-transform duration-500 cursor-pointer">
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
             </div>
-          ) : <div id="googleBtn" className="hover:scale-105 transition-transform duration-200"></div>}
+            
+            <h2 className="text-4xl font-outfit font-black text-white italic tracking-tighter mb-4">ChatHub</h2>
+            <p className="text-indigo-400 text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-10">Premium Messaging Platform</p>
+            
+            <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/5 mb-12 shadow-inner">
+               <p className="text-sm text-slate-400 font-bold leading-relaxed italic">
+                 "המערכת המקצועית והמעוצבת ביותר ליצירת הודעות וסקרים מעוצבים ל-Google Chat."
+               </p>
+            </div>
+
+            <div className="flex justify-center min-h-[70px]" dir="ltr">
+              {loading ? (
+                 <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest animate-pulse">Authenticating...</span>
+                 </div>
+              ) : (
+                <div className="hover:scale-105 transition-transform duration-500 shadow-2xl rounded-full">
+                    <div id="googleBtn"></div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-16 flex flex-col gap-2">
+                <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">Version 36.0 • Midnight Bloom Edition</p>
+                <div className="flex justify-center gap-4 opacity-20">
+                    <div className="h-1 w-8 bg-indigo-500 rounded-full" />
+                    <div className="h-1 w-8 bg-white/20 rounded-full" />
+                    <div className="h-1 w-8 bg-white/20 rounded-full" />
+                </div>
+            </div>
         </div>
       </div>
     </div>
