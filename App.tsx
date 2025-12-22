@@ -9,12 +9,13 @@ import HistorySidebar from './components/HistorySidebar';
 import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
-type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'connecting';
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'auth_needed';
 
-// שימוש ב-Bucket ייעודי ב-KVDB ליציבות
-const KV_BUCKET = 'chathub_v29_stable';
-const BASE_URL = `https://kvdb.io/A9zXv6q8y4PqR1w7z9x2/${KV_BUCKET}_`; 
-const STORAGE_PREFIX = 'ch_v29_'; 
+const STORAGE_PREFIX = 'ch_v30_';
+const GOOGLE_CLIENT_ID = "456093644604-43qt6d36nk36fassgbf1mm6otpav8mti.apps.googleusercontent.com";
+const DRIVE_FILE_NAME = 'chathub_sync_data.json';
+
+declare const google: any;
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -25,74 +26,101 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [isReady, setIsReady] = useState(false);
   
+  const accessToken = useRef<string | null>(null);
+  const driveFileId = useRef<string | null>(null);
   const lastSyncHash = useRef<string>("");
-  const isSyncing = useRef<boolean>(false);
 
-  // משיכת נתונים מהענן
-  const fetchFromCloud = useCallback(async (syncKey: string) => {
+  // מנגנון קבלת טוקן ל-Drive
+  const getDriveToken = useCallback(() => {
+    return new Promise<string>((resolve, reject) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/drive.appdata',
+        callback: (response: any) => {
+          if (response.error) reject(response);
+          accessToken.current = response.access_token;
+          resolve(response.access_token);
+        },
+      });
+      client.requestAccessToken({ prompt: '' });
+    });
+  }, []);
+
+  // מציאת או יצירת קובץ בדרייב
+  const findOrCreateFile = async (token: string) => {
+    // חיפוש
+    const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${DRIVE_FILE_NAME}'`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const searchData = await searchRes.json();
+    
+    if (searchData.files && searchData.files.length > 0) {
+      driveFileId.current = searchData.files[0].id;
+      return searchData.files[0].id;
+    }
+
+    // יצירה אם לא קיים
+    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: DRIVE_FILE_NAME, parents: ['appDataFolder'] })
+    });
+    const createData = await createRes.json();
+    driveFileId.current = createData.id;
+    return createData.id;
+  };
+
+  const fetchFromDrive = useCallback(async () => {
+    if (!accessToken.current) {
+        try { await getDriveToken(); } catch(e) { setSyncStatus('auth_needed'); return; }
+    }
     setSyncStatus('syncing');
     try {
-      const response = await fetch(`${BASE_URL}${syncKey}`);
-      if (response.ok) {
-        const data: UserDataContainer = await response.json();
+      const fileId = driveFileId.current || await findOrCreateFile(accessToken.current!);
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: { Authorization: `Bearer ${accessToken.current}` }
+      });
+      
+      if (res.ok) {
+        const data: UserDataContainer = await res.json();
         if (data) {
-          // מיזוג חכם עם המידע המקומי
-          setHistory(prevLocal => {
-            const combined = [...(data.history || []), ...prevLocal];
+          setHistory(prev => {
+            const combined = [...(data.history || []), ...prev];
             return Array.from(new Map(combined.map(item => [item.timestamp, item])).values())
-                        .sort((a,b) => b.timestamp - a.timestamp)
-                        .slice(0, 100);
+                        .sort((a,b) => b.timestamp - a.timestamp).slice(0, 100);
           });
-          setSavedWebhooks(prevLocal => {
-            const combined = [...(data.webhooks || []), ...prevLocal];
+          setSavedWebhooks(prev => {
+            const combined = [...(data.webhooks || []), ...prev];
             return Array.from(new Map(combined.map(item => [item.url, item])).values());
           });
           lastSyncHash.current = JSON.stringify(data);
           setSyncStatus('success');
-          return true;
         }
-      } else if (response.status === 404) {
-        // מפתח חדש, אין עדיין מידע בענן
-        setSyncStatus('success');
       }
     } catch (e) {
-      console.error("Cloud fetch failed", e);
       setSyncStatus('error');
     }
-    return false;
-  }, []);
+  }, [getDriveToken]);
 
-  // שמירה לענן
-  const saveToCloud = useCallback(async (data: UserDataContainer) => {
-    if (!user || isSyncing.current) return;
-    
+  const saveToDrive = useCallback(async (data: UserDataContainer) => {
+    if (!accessToken.current || !driveFileId.current) return;
     const currentHash = JSON.stringify(data);
     if (currentHash === lastSyncHash.current) return;
 
-    isSyncing.current = true;
     setSyncStatus('syncing');
-
     try {
-      const response = await fetch(`${BASE_URL}${user.syncKey}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId.current}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${accessToken.current}`, 'Content-Type': 'application/json' },
         body: currentHash
       });
-
-      if (response.ok) {
-        lastSyncHash.current = currentHash;
-        setSyncStatus('success');
-      } else {
-        setSyncStatus('error');
-      }
+      lastSyncHash.current = currentHash;
+      setSyncStatus('success');
     } catch (e) {
       setSyncStatus('error');
-    } finally {
-      isSyncing.current = false;
     }
-  }, [user]);
+  }, []);
 
-  // טעינה ראשונית
   useEffect(() => {
     const localUser = localStorage.getItem(`${STORAGE_PREFIX}user`);
     const localH = localStorage.getItem(`${STORAGE_PREFIX}history`);
@@ -102,46 +130,32 @@ export default function App() {
     if (localW) { try { setSavedWebhooks(JSON.parse(localW)); } catch(e){} }
 
     if (localUser) {
-      const parsed = JSON.parse(localUser);
-      setUser(parsed);
-      fetchFromCloud(parsed.syncKey);
+      setUser(JSON.parse(localUser));
+      fetchFromDrive();
       setIsReady(true);
     } else {
       setIsAuthOpen(true);
       setIsReady(true);
     }
-  }, [fetchFromCloud]);
+  }, [fetchFromDrive]);
 
-  // לופ סנכרון אוטומטי
   useEffect(() => {
     if (!user || !isReady) return;
-    
     localStorage.setItem(`${STORAGE_PREFIX}history`, JSON.stringify(history));
     localStorage.setItem(`${STORAGE_PREFIX}webhooks`, JSON.stringify(savedWebhooks));
 
     const timer = setTimeout(() => {
-      saveToCloud({ history, webhooks: savedWebhooks });
-    }, 5000); // סנכרון כל 5 שניות משינוי
-    
+      saveToDrive({ history, webhooks: savedWebhooks });
+    }, 5000);
     return () => clearTimeout(timer);
-  }, [history, savedWebhooks, user, saveToCloud, isReady]);
+  }, [history, savedWebhooks, user, saveToDrive, isReady]);
 
   const handleLogin = (username: string, syncKey: string, avatar?: string) => {
     const newUser = { username, syncKey, avatar };
     setUser(newUser);
     localStorage.setItem(`${STORAGE_PREFIX}user`, JSON.stringify(newUser));
-    fetchFromCloud(syncKey);
+    fetchFromDrive();
     setIsAuthOpen(false);
-  };
-
-  const handleLogout = () => {
-    if (!confirm('להתנתק? המידע יישמר בענן אך יימחק מהדפדפן הזה.')) return;
-    localStorage.clear();
-    window.location.reload();
-  };
-
-  const triggerManualSync = () => {
-    if (user) fetchFromCloud(user.syncKey);
   };
 
   return (
@@ -158,13 +172,12 @@ export default function App() {
              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 syncStatus === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 
                 syncStatus === 'syncing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                syncStatus === 'error' ? 'bg-red-50 text-red-600 border border-red-100' :
                 'bg-slate-100 text-slate-500 border border-slate-200'
              }`}>
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : syncStatus === 'error' ? 'bg-red-500' : 'bg-slate-400'}`} />
-                {syncStatus === 'syncing' ? 'סנכרון ענן...' : 
-                 syncStatus === 'success' ? 'מחובר לענן' : 
-                 syncStatus === 'error' ? 'שגיאת חיבור (מנסה שוב)' : 'שמור מקומית'}
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'success' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                {syncStatus === 'syncing' ? 'סנכרון Drive...' : 
+                 syncStatus === 'success' ? 'מחובר ל-Drive' : 
+                 syncStatus === 'auth_needed' ? 'נדרש אישור גישה' : 'שמור מקומית'}
              </div>
           </div>
         </div>
@@ -201,8 +214,8 @@ export default function App() {
               username={user?.username}
               avatar={user?.avatar}
               savedWebhooks={savedWebhooks}
-              cloudId={user?.syncKey || null}
-              onLogout={handleLogout}
+              cloudId="Google Drive"
+              onLogout={() => { localStorage.clear(); window.location.reload(); }}
               onImportFile={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
@@ -225,9 +238,9 @@ export default function App() {
                   a.download = `chathub_backup.json`;
                   a.click();
               }}
-              onSetCloudId={() => {}} // מבוטל בגרסה זו
-              onResetCloud={() => {}} // מבוטל בגרסה זו
-              onManualSync={triggerManualSync}
+              onSetCloudId={() => {}}
+              onResetCloud={() => {}}
+              onManualSync={fetchFromDrive}
             />
           </div>
         </div>
