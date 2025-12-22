@@ -14,11 +14,12 @@ const HistorySidebar = ({ history, syncStatus, username, avatar }: HistorySideba
   return (
     <aside className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-6 shadow-2xl shadow-slate-200/40 flex flex-col h-full max-h-[calc(100vh-10rem)] border border-white overflow-hidden">
       
-      {/* User Info Card - RTL Optimized */}
+      {/* User Info Card - Improved RTL & Unicode Support */}
       <div className="mb-8 p-5 bg-indigo-600 rounded-[2rem] text-white shadow-xl shadow-indigo-200/50 relative overflow-hidden group">
-        <div className="relative z-10 flex items-center gap-4">
-          {/* Avatar Section */}
-          <div className="flex-shrink-0">
+        <div className="relative z-10 flex items-center justify-between">
+          
+          {/* Avatar Section - Left side in RTL */}
+          <div className="flex-shrink-0 order-2">
             {avatar ? (
               <img src={avatar} className="w-14 h-14 rounded-2xl border-2 border-white/30 shadow-md object-cover transition-transform group-hover:scale-105" alt="User" />
             ) : (
@@ -28,22 +29,23 @@ const HistorySidebar = ({ history, syncStatus, username, avatar }: HistorySideba
             )}
           </div>
 
-          {/* Text Section */}
-          <div className="flex-1 min-w-0 text-right">
-            <h4 className="text-xl font-bold truncate leading-tight mb-1" style={{ fontFamily: 'Assistant, sans-serif' }}>
+          {/* Text Section - Right side in RTL */}
+          <div className="flex-1 min-w-0 text-right order-1 px-1">
+            <h4 className="text-xl font-bold truncate mb-1" style={{ fontFamily: 'Assistant, sans-serif' }}>
               {username || 'משתמש אורח'}
             </h4>
             <div className="flex items-center gap-1.5 justify-start">
-              <div className={`w-2 h-2 rounded-full ${
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                 syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : 'bg-green-400'
               }`} />
-              <p className="text-[10px] font-bold opacity-80 uppercase tracking-wide">סנכרון רב-מכשירי פעיל</p>
+              <p className="text-[10px] font-bold opacity-80 uppercase tracking-wide truncate">מסונכרן לכל המכשירים</p>
             </div>
           </div>
+          
         </div>
         
         {/* Decorative background element */}
-        <div className="absolute right-0 bottom-0 translate-y-1/2 translate-x-1/4 opacity-10 group-hover:scale-110 transition-transform duration-700">
+        <div className="absolute left-0 bottom-0 translate-y-1/2 -translate-x-1/4 opacity-10 group-hover:scale-110 transition-transform duration-700">
            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
              <path d="M12 6V12L16 14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

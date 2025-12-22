@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 
 // --- הגדרות חשובות ---
-// המזהה האישי שלך שהונפק ב-Google Cloud Console
 const GOOGLE_CLIENT_ID = "456093644604-43qt6d36nk36fassgbf1mm6otpav8mti.apps.googleusercontent.com"; 
 
 declare const google: any;
@@ -15,7 +14,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // פונקציית גיבוב ליצירת מפתח סנכרון (אותה זהות גוגל = אותו מפתח ענן)
+  // פונקציית גיבוב ליצירת מפתח סנכרון
   const generateSyncKey = async (identity: string) => {
     const msgBuffer = new TextEncoder().encode(`chathub_v5_${identity.toLowerCase()}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
@@ -23,12 +22,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
   };
 
+  // פענוח בטוח של JWT התומך בעברית (Unicode)
   const decodeJWT = (token: string) => {
     try {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      return JSON.parse(window.atob(base64));
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
     } catch (e) {
+      console.error("JWT Decode Error:", e);
       return null;
     }
   };
@@ -42,7 +46,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
             setLoading(true);
             const userData = decodeJWT(response.credential);
             if (userData) {
-              // שימוש ב-sub (המזהה הקבוע של גוגל למשתמש) ליצירת מפתח ענן אישי
               const syncKey = await generateSyncKey(userData.sub);
               onLogin(userData.given_name || userData.name, syncKey, userData.picture);
             } else {
@@ -59,14 +62,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           google.accounts.id.renderButton(btnContainer, {
             theme: "outline",
             size: "large",
-            width: 280, // שימוש ברוחב קבוע למניעת שבירה
+            width: 280,
             text: "continue_with",
             shape: "pill",
             logo_alignment: "left"
           });
         }
       } else {
-        // ניסיון חוזר אם הספרייה טרם נטענה (בגלל async script)
         setTimeout(initGoogle, 500);
       }
     };
@@ -95,7 +97,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           </div>
         )}
 
-        {/* מיכל הלחצן - הוספתי dir="ltr" ורוחב מוגדר כדי להבטיח מירכוז מושלם */}
         <div className="flex flex-col items-center justify-center min-h-[80px]" dir="ltr">
           {loading ? (
             <div className="flex flex-col items-center gap-3">
