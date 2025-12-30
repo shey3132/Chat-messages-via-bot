@@ -22,9 +22,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           ux_mode: "popup",
           callback: async (response: any) => {
             setLoading(true);
-            const token = response.credential;
-            const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-            onLogin(payload.name, payload.sub, payload.picture, false);
+            try {
+                const token = response.credential;
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                
+                // CRITICAL FIX: Unicode-safe decoding for Google Payload
+                // This ensures Hebrew and special mathematical symbols are parsed correctly.
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+
+                const payload = JSON.parse(jsonPayload);
+                onLogin(payload.name, payload.sub, payload.picture, false);
+            } catch (error) {
+                console.error("JWT Decoding failed", error);
+                alert("חלה שגיאה בפענוח נתוני המשתמש. נסה שוב.");
+                setLoading(false);
+            }
           },
         });
         const btn = document.getElementById("googleBtn");
@@ -98,7 +113,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         )}
 
         <div className="mt-12 pt-8 border-t border-slate-50">
-            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v53.0 • UNICODE FIXED</p>
+            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v54.0 • UTF-8 UNICODE FIXED</p>
         </div>
       </div>
     </div>

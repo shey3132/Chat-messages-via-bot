@@ -10,7 +10,7 @@ import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
 
-const STORAGE_PREFIX = 'chathub_v53_';
+const STORAGE_PREFIX = 'chathub_v54_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -87,8 +87,8 @@ export default function App() {
            {user && (
              <div className="flex items-center gap-3 pl-5 pr-1.5 py-1.5 rounded-full bg-white shadow-xl">
                 <div className="flex flex-col items-end leading-none">
-                  {/* dir="ltr" + username-display class with special fonts */}
-                  <span className="text-sm text-slate-900 username-display" dir="ltr">{user.username}</span>
+                  {/* dir="ltr" + username-display class with Unicode-safe fonts */}
+                  <span className="text-sm font-bold text-slate-900 username-display" dir="ltr">{user.username}</span>
                   <div className="flex gap-2 items-center mt-1">
                     {user.isGuest && <span className="text-[7px] font-black bg-indigo-600 text-white px-1.5 rounded-full tracking-tighter">GUEST</span>}
                     <button onClick={handleLogout} className="text-[9px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors">Logout</button>

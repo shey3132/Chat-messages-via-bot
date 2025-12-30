@@ -11,8 +11,8 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- הוספת Noto Sans Symbols 2 - הגופן היחיד שמציג תווים מתמטיים מעוצבים בלי ריבועים -->
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Noto+Sans+Math&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+    <!-- הוספת Noto Sans Symbols 2 ו-Noto Sans Math - תמיכה בתווים מיוחדים ומתמטיים -->
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Noto+Sans+Math&family=Noto+Sans+Symbols+2&family=STIX+Two+Math&display=swap" rel="stylesheet">
 <script type="importmap">
 {
   "imports": {
@@ -44,14 +44,14 @@
       radial-gradient(circle at 100% 100%, rgba(217, 70, 239, 0.15) 0%, transparent 50%);
   }
 
-  /* התיקון המוחלט לשם המשתמש - מכריח שימוש בגופן תומך Unicode רחב */
+  /* התיקון המוחלט לשם המשתמש - גופנים רחבים מאוד למניעת ריבועים */
   .username-display {
-    font-family: "Noto Sans Symbols 2", "Noto Sans Math", "Segoe UI Symbol", sans-serif !important;
-    font-weight: 400 !important;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Math", "STIX Two Math", "Segoe UI Symbol", "Apple Color Emoji", sans-serif !important;
+    font-weight: 500 !important;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     display: inline-block;
-    unicode-bidi: isolate;
+    vertical-align: middle;
   }
 
   .header-gradient {
@@ -74,7 +74,7 @@
   
   @keyframes slideUp {
     from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; opacity: 1; transform: translateY(0); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .animate-ready { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 </style>
