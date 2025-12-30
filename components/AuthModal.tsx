@@ -44,7 +44,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
       <div className="bg-white w-full max-w-md rounded-[3rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] p-12 border border-slate-100 text-center animate-ready">
         
         <div className="w-16 h-16 header-gradient rounded-3xl mx-auto mb-6 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
-            <span className="text-3xl">⚡</span>
+            <svg viewBox="0 0 100 100" className="w-8 h-8 fill-none stroke-white" strokeWidth="10" strokeLinecap="round">
+                <rect x="5" y="5" width="90" height="90" rx="20" opacity="0.3"/>
+                <path d="M25 35h50M25 50h50M25 65h30"/>
+            </svg>
         </div>
         
         <h2 className="text-3xl font-black text-slate-900 mb-1 tracking-tighter uppercase">ChatHub</h2>
@@ -95,7 +98,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         )}
 
         <div className="mt-12 pt-8 border-t border-slate-50">
-            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v52.0 • POWER EDITION</p>
+            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v53.0 • UNICODE FIXED</p>
         </div>
       </div>
     </div>
