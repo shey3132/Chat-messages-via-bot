@@ -44,7 +44,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
       <div className="bg-white w-full max-w-md rounded-[3rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] p-12 border border-slate-100 text-center animate-ready">
         
         <div className="w-16 h-16 header-gradient rounded-3xl mx-auto mb-6 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
-           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+           <span className="text-3xl">⚡</span>
         </div>
         
         <h2 className="text-3xl font-black text-slate-900 mb-1 tracking-tighter uppercase">ChatHub</h2>
@@ -95,7 +95,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         )}
 
         <div className="mt-12 pt-8 border-t border-slate-50">
-            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v48.0 • VIBRANT EDITION</p>
+            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v49.0 • LIGHTNING EDITION</p>
         </div>
       </div>
     </div>
