@@ -4,13 +4,15 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
-    <title>ChatHub | Power Messaging</title>
+    <!-- Favicon: Professional Hub Icon (SVG) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%234f46e5%22/><path d=%22M30 50 L70 50 M50 30 L50 70%22 stroke=%22white%22 stroke-width=%228%22 stroke-linecap=%22round%22/><circle cx=%2230%22 cy=%2250%22 r=%226%22 fill=%22white%22/><circle cx=%2270%22 cy=%2250%22 r=%226%22 fill=%22white%22/><circle cx=%2250%22 cy=%2230%22 r=%226%22 fill=%22white%22/><circle cx=%2250%22 cy=%2270%22 r=%226%22 fill=%22white%22/></svg>">
+    <title>ChatHub | Premium Messaging</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Noto+Sans+Math&family=STIX+Two+Math&family=Rubik:wght@700;900&display=swap" rel="stylesheet">
+    <!-- Adding Noto Sans Math and STIX Two Math for full unicode coverage -->
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Noto+Sans+Math&family=STIX+Two+Math:wght@400;700&display=swap" rel="stylesheet">
 <script type="importmap">
 {
   "imports": {
@@ -42,12 +44,14 @@
       radial-gradient(circle at 100% 100%, rgba(217, 70, 239, 0.15) 0%, transparent 50%);
   }
 
-  /* פתרון לשם המשתמש - סדר עדיפויות לגופנים מתמטיים */
+  /* Critical fix for username display with mathematical symbols */
   .username-display {
-    font-family: 'Noto Sans Math', 'STIX Two Math', 'Cambria Math', 'Segoe UI Symbol', 'Apple Color Emoji', sans-serif !important;
-    font-weight: 700;
+    font-family: 'STIX Two Math', 'Noto Sans Math', 'Cambria Math', 'Segoe UI Symbol', 'Apple Color Emoji', serif !important;
+    font-weight: 500 !important;
     text-rendering: optimizeLegibility;
-    display: inline-block;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    unicode-bidi: isolate;
   }
 
   .header-gradient {
