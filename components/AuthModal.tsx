@@ -109,8 +109,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           </button>
         )}
 
-        <div className="mt-12 pt-8 border-t border-slate-50">
-            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v55.0 • Animated Branding</p>
+        <div className="mt-12 pt-8 border-t border-slate-50 flex flex-col items-center gap-1">
+            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v56.0 • Licensed Workspace</p>
+            <p className="text-[8px] text-slate-200 font-bold uppercase tracking-[0.1em]">כל הזכויות שמורות לשי © 2025</p>
         </div>
       </div>
     </div>

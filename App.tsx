@@ -10,7 +10,7 @@ import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
 
-const STORAGE_PREFIX = 'chathub_v55_';
+const STORAGE_PREFIX = 'chathub_v56_';
 const CUSTOM_LOGO_URL = "https://raw.githubusercontent.com/shey3132/-22/refs/heads/main/shai-logo-animation%20(1).gif";
 
 export default function App() {
@@ -59,7 +59,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col p-3 lg:p-5 gap-4 max-w-[1600px] mx-auto overflow-hidden">
+    <div className="h-screen flex flex-col p-3 lg:p-5 gap-4 max-w-[1600px] mx-auto overflow-hidden relative">
       
       {/* Header - Custom Animated Logo */}
       <header className="flex flex-col sm:flex-row justify-between items-center header-gradient p-4 px-8 rounded-[2rem] shadow-2xl shadow-indigo-500/20 text-white">
@@ -70,7 +70,7 @@ export default function App() {
              </div>
              <div className="flex flex-col">
                 <h1 className="text-2xl font-black tracking-tighter uppercase leading-none">ChatHub</h1>
-                <span className="text-[8px] font-bold opacity-70 tracking-widest uppercase mt-1">Workspace v55</span>
+                <span className="text-[8px] font-bold opacity-70 tracking-widest uppercase mt-1">Workspace v56</span>
              </div>
           </div>
 
@@ -102,7 +102,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 animate-ready">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 animate-ready mb-6">
         <main className="flex-1 flex flex-col min-h-0">
           {activeApp === 'chatSender' ? (
             <GoogleChatSender 
@@ -131,6 +131,13 @@ export default function App() {
           <HistorySidebar history={history} />
         </aside>
       </div>
+
+      {/* Footer Copyright */}
+      <footer className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none opacity-40">
+          <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">
+            כל הזכויות שמורות לשי © 2025
+          </span>
+      </footer>
 
       {isAuthOpen && <AuthModal onLogin={handleLogin} />}
       <Analytics />
