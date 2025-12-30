@@ -44,13 +44,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
       <div className="bg-white w-full max-w-md rounded-[3rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] p-12 border border-slate-100 text-center animate-ready">
         
         <div className="w-16 h-16 header-gradient rounded-3xl mx-auto mb-6 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
-           <svg viewBox="0 0 100 100" className="w-8 h-8 fill-white">
-                <circle cx="50" cy="50" r="45" opacity="0.3"/>
-                <path d="M30 50 L70 50 M50 30 L50 70" stroke="white" strokeWidth="8" strokeLinecap="round"/>
-                <circle cx="30" cy="50" r="6"/>
-                <circle cx="70" cy="50" r="6"/>
-                <circle cx="50" cy="30" r="6"/>
-                <circle cx="50" cy="70" r="6"/>
+            <svg viewBox="0 0 100 100" className="w-8 h-8 fill-none stroke-white" strokeWidth="8" strokeLinecap="round">
+                <rect x="10" y="10" width="80" height="80" rx="20" opacity="0.3"/>
+                <path d="M25 35h50M25 50h50M25 65h30"/>
             </svg>
         </div>
         
@@ -102,7 +98,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         )}
 
         <div className="mt-12 pt-8 border-t border-slate-50">
-            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v50.0 • PRO HUB EDITION</p>
+            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v51.0 • UNIVERSAL UNICODE EDITION</p>
         </div>
       </div>
     </div>
