@@ -10,7 +10,7 @@
     <script src="https://apis.google.com/js/api.js" async defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;700;900&family=Outfit:wght@400;600;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;700;900&family=Outfit:wght@400;600;900&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/shey3132/-22/main/%D7%A4%D7%A8%D7%95%D7%A4%D7%99%D7%9C%20%D7%93%D7%99%D7%92%D7%99%D7%98%D7%9C%D7%99%20%D7%A2%D7%9D%20%D7%A8%D7%A9%D7%AA%20%D7%A4%D7%A2%D7%95%D7%9C%D7%94.png">
 <script type="importmap">
 {
@@ -28,25 +28,55 @@
 </script>
 <style>
   body {
-    font-family: 'Assistant', 'Heebo', sans-serif;
+    font-family: 'Rubik', 'Assistant', sans-serif;
     scroll-behavior: smooth;
-    background-color: #f8fafc; /* Light Slate-50 */
+    background-color: #fdfdfd;
   }
-  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+  ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.1); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.3); }
   
-  .glass-card {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+  .glass-morph {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
   }
-  
-  .font-outfit { font-family: 'Outfit', sans-serif; }
+
+  .mesh-gradient {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background-color: #ffffff;
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+      radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+      radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%), 
+      radial-gradient(at 0% 100%, hsla(321,11%,0%,1) 0, transparent 50%), 
+      radial-gradient(at 100% 100%, hsla(349,11%,0%,1) 0, transparent 50%);
+    opacity: 0.08;
+  }
+
+  .animated-gradient-text {
+    background: linear-gradient(to right, #4f46e5, #06b6d4, #ec4899, #4f46e5);
+    background-size: 200% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: shine 4s linear infinite;
+  }
+
+  @keyframes shine {
+    to { background-position: 200% center; }
+  }
 </style>
 </head>
 <body class="text-slate-900 antialiased overflow-hidden">
+    <div class="mesh-gradient"></div>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
 </body>
