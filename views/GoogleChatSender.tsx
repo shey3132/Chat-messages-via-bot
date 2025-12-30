@@ -24,97 +24,63 @@ const WebhookSelector: React.FC<WebhookSelectorProps> = ({ currentUrl, onSelect,
 
     return (
         <div className="relative w-full">
-            <div className="flex gap-4">
+            <div className="flex gap-3">
                 <div className="relative flex-1 group">
                     <input 
                       type="text" 
                       value={currentUrl} 
                       onChange={(e) => onSelect(e.target.value)} 
                       placeholder="הדבק כאן את כתובת ה-Webhook..." 
-                      className="block w-full rounded-2xl border-4 border-slate-900 bg-white shadow-2xl focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100 transition-all pr-12 h-16 text-sm text-slate-950 placeholder:text-slate-400 font-black"
+                      className="block w-full rounded-xl border-2 border-slate-300 bg-white shadow-sm focus:border-indigo-600 transition-all pr-12 h-14 text-sm font-bold text-slate-900 placeholder:text-slate-400"
                       autoComplete="off"
                     />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-950 group-focus-within:text-indigo-600 transition-colors pointer-events-none">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                     </div>
                     <button 
                         onClick={() => setIsOpen(!isOpen)}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 text-slate-950 hover:text-indigo-600 transition-colors rounded-xl"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-indigo-600 transition-colors"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M19 9l-7 7-7-7" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
                     </button>
                 </div>
                 <button 
                     onClick={() => setIsSaving(!isSaving)}
-                    title="שמירה"
-                    className={`h-16 w-16 flex items-center justify-center rounded-2xl border-4 transition-all ${isSaving ? 'bg-indigo-600 text-white border-indigo-700 shadow-xl' : 'bg-white text-slate-950 border-slate-900 hover:bg-slate-50'}`}
+                    className={`h-14 w-14 flex items-center justify-center rounded-xl border-2 transition-all ${isSaving ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-slate-400 border-slate-300 hover:border-indigo-600 hover:text-indigo-600'}`}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
                 </button>
             </div>
 
             {isOpen && (
-                <div className="absolute z-50 w-full mt-4 bg-white rounded-[2.5rem] shadow-[0_40px_100px_rgba(0,0,0,0.4)] border-4 border-slate-950 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="p-6 border-b-4 border-slate-950 bg-slate-950 flex justify-between items-center text-white">
-                        <span className="text-[13px] font-black uppercase tracking-widest px-2 italic">יעדים שמורים ({savedWebhooks.length})</span>
+                <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden">
+                    <div className="p-4 bg-slate-50 border-b-2 border-slate-200">
+                        <span className="text-xs font-black text-slate-900 uppercase">יעדים שמורים ({savedWebhooks.length})</span>
                     </div>
-                    <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                    <div className="max-h-64 overflow-y-auto">
                         {savedWebhooks.length === 0 ? (
-                            <div className="p-16 text-center text-slate-300 italic text-sm font-black uppercase">אין פריטים שמורים</div>
+                            <div className="p-10 text-center text-slate-400 font-bold italic">אין פריטים שמורים</div>
                         ) : (
                             savedWebhooks.map(w => (
-                                <div key={w.id} className="flex items-center justify-between p-4 hover:bg-indigo-50 group border-b border-slate-100 last:border-0 mx-4 transition-colors rounded-2xl mt-2 first:mt-3 last:mb-3">
-                                    <button 
-                                        onClick={() => { onSelect(w.url); setIsOpen(false); }}
-                                        className="flex-1 text-right px-4 py-2"
-                                    >
-                                        <div className="font-black text-slate-950 text-lg tracking-tight">{w.name}</div>
-                                        <div className="text-[11px] text-slate-500 truncate max-w-[340px] mt-1.5 font-mono font-bold">{w.url}</div>
+                                <div key={w.id} className="flex items-center justify-between p-3 hover:bg-indigo-50 border-b border-slate-100 last:border-0">
+                                    <button onClick={() => { onSelect(w.url); setIsOpen(false); }} className="flex-1 text-right">
+                                        <div className="font-bold text-slate-900">{w.name}</div>
+                                        <div className="text-[10px] text-slate-400 truncate">{w.url}</div>
                                     </button>
-                                    <button 
-                                        onClick={() => onDelete(w.id)}
-                                        className="p-3 text-red-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all rounded-xl"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
+                                    <button onClick={() => onDelete(w.id)} className="p-2 text-red-300 hover:text-red-600"><TrashIcon /></button>
                                 </div>
                             ))
                         )}
                     </div>
                 </div>
             )}
-
-            {isSaving && (
-                <div className="absolute z-50 left-0 mt-4 p-8 bg-white rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.3)] border-4 border-slate-950 w-96 animate-in zoom-in-95 duration-200">
-                    <h4 className="text-lg font-black text-slate-950 mb-6 uppercase tracking-widest">שמירת יעד חדש</h4>
-                    <input 
-                        type="text" 
-                        value={nickname}
-                        onChange={(e) => setNickname(e.target.value)}
-                        placeholder="שם זיהוי..."
-                        className="w-full text-base rounded-2xl border-4 border-slate-200 bg-slate-50 focus:border-slate-950 mb-6 h-14 px-6 font-black"
-                        autoFocus
-                    />
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={handleSave}
-                            disabled={!nickname.trim()}
-                            className="flex-1 bg-slate-950 text-white text-sm font-black py-4 rounded-2xl uppercase tracking-widest shadow-xl"
-                        >
-                            שמור יעד
-                        </button>
-                        <button 
-                            onClick={() => setIsSaving(false)}
-                            className="px-6 bg-slate-100 text-slate-950 text-sm font-black py-4 rounded-2xl"
-                        >
-                            ביטול
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
+
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+);
 
 const githubBlobToRaw = (url: string): string => {
   if (!url || url.startsWith('data:image')) return url;
@@ -124,8 +90,6 @@ const githubBlobToRaw = (url: string): string => {
     return url.replace('https://github.com/', 'https://raw.githubusercontent.com/').replace('/blob/', '/').replace('?raw=true', '');
   } catch (e) { return url; }
 };
-
-const inputStyles = "block w-full mt-2 rounded-2xl border-4 border-slate-100 bg-white shadow-lg focus:border-slate-950 transition-all text-base text-slate-950 px-6 h-14 placeholder:text-slate-300 font-black";
 
 export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebhook, onDeleteWebhook }: any) {
   const [webhookUrl, setWebhookUrl] = useState<string>(() => localStorage.getItem('last_webhook_url') || '');
@@ -168,100 +132,99 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
   };
 
   return (
-    <div className="flex flex-col bg-white rounded-[4rem] p-10 lg:p-14 shadow-2xl border-4 border-slate-100 h-full overflow-hidden">
+    <div className="flex flex-col bg-white rounded-3xl p-8 lg:p-10 shadow-xl border-t-8 border-indigo-600 h-full overflow-hidden">
         
-        <div className="flex-1 overflow-y-auto custom-scrollbar pl-6 -ml-6 pr-2 space-y-12 pb-10">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pl-4 -ml-4 pr-1 space-y-8 pb-10">
             
             <section>
-               <label className="label-high-contrast">
-                  כתובת יעד השידור (Webhook URL)
-               </label>
+               <label className="label-high-contrast">כתובת ה-Webhook ליעד השידור</label>
                <WebhookSelector currentUrl={webhookUrl} onSelect={setWebhookUrl} savedWebhooks={savedWebhooks} onAdd={onAddWebhook} onDelete={onDeleteWebhook} />
             </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 bg-slate-50 p-10 rounded-[3rem] border-4 border-white shadow-inner">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 p-8 rounded-2xl border-2 border-slate-100">
                <div>
-                  <label className="label-high-contrast">סגנון ההפצה</label>
-                  <select value={mode} onChange={(e) => setMode(e.target.value as any)} className={inputStyles}>
+                  <label className="label-high-contrast">סגנון ההפצה המבוקש</label>
+                  <select value={mode} onChange={(e) => setMode(e.target.value as any)} className="block w-full rounded-xl border-2 border-slate-300 bg-white h-14 px-6 font-bold text-slate-900 focus:border-indigo-600 transition-all">
                      <option value="card">כרטיס פרימיום מעוצב</option>
-                     <option value="text">טקסט מהיר בלבד</option>
+                     <option value="text">טקסט פשוט ומהיר</option>
                   </select>
                </div>
-               <div className="flex items-end pb-4 text-slate-950 text-[13px] font-black uppercase tracking-[0.3em] italic pr-4">
-                  מצב שידור: {mode === 'card' ? 'RICH UI' : 'PLAIN TEXT'}
+               <div className="flex items-center justify-center border-4 border-dashed border-slate-200 rounded-xl px-6 bg-white/50">
+                  <span className="text-sm font-black text-slate-400 uppercase tracking-widest italic">{mode === 'card' ? 'RICH EXPERIENCE' : 'RAW CONTENT'}</span>
                </div>
             </div>
 
-            {mode === 'text' ? (
-                <div className="animate-in slide-in-from-bottom-6 duration-500">
-                   <label className="label-high-contrast">תוכן המסר להפצה</label>
-                   <textarea 
-                    value={plainText} 
-                    onChange={(e) => setPlainText(e.target.value)} 
-                    placeholder="כתבו כאן את המסר..." 
-                    className="block w-full rounded-[3rem] border-4 border-slate-100 bg-white shadow-xl focus:border-slate-950 min-h-[350px] p-10 text-xl leading-relaxed text-slate-950 placeholder:text-slate-300 font-black" 
-                   />
-                </div>
-            ) : (
-                <div className="space-y-12 animate-in slide-in-from-bottom-8 duration-700">
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">
-                      <div>
-                        <label className="label-high-contrast">כותרת ראשית (Title)</label>
-                        <input type="text" value={cardData.title} onChange={(e) => setCardData({...cardData, title: e.target.value})} className={inputStyles} placeholder="למשל: עדכון רבעוני חשוב" />
-                      </div>
-                      <div>
-                        <label className="label-high-contrast">תת-כותרת (Subtitle)</label>
-                        <input type="text" value={cardData.subtitle} onChange={(e) => setCardData({...cardData, subtitle: e.target.value})} className={inputStyles} placeholder="מידע משלים..." />
-                      </div>
+            <div className="space-y-8">
+               {mode === 'text' ? (
+                   <div>
+                      <label className="label-high-contrast">תוכן המסר להפצה</label>
+                      <textarea 
+                        value={plainText} 
+                        onChange={(e) => setPlainText(e.target.value)} 
+                        placeholder="כתבו כאן את המסר שלכם..." 
+                        className="block w-full rounded-2xl border-2 border-slate-300 bg-white min-h-[300px] p-8 text-lg font-bold text-slate-900 focus:border-indigo-600"
+                      />
                    </div>
-
-                   <div className="bg-slate-50 rounded-[3.5rem] p-12 border-4 border-white space-y-12 shadow-inner">
-                      <div>
-                        <label className="label-high-contrast">גוף ההודעה המרכזי</label>
-                        <textarea value={cardData.cardText} onChange={(e) => setCardData({...cardData, cardText: e.target.value})} className="block w-full rounded-[2.5rem] border-4 border-slate-100 bg-white shadow-lg focus:border-slate-950 min-h-[180px] p-10 text-lg text-slate-950 placeholder:text-slate-200 leading-relaxed font-black" placeholder="כתבו כאן את תוכן ההודעה..." />
-                      </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+               ) : (
+                   <div className="space-y-8 animate-in fade-in duration-500">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                          <div>
-                            <label className="label-high-contrast">קישורי תמונות (שורה לכל קישור)</label>
-                            <textarea value={cardData.images} onChange={(e) => setCardData({...cardData, images: e.target.value})} className="block w-full rounded-[2rem] border-4 border-slate-100 bg-white h-36 p-6 text-[12px] font-mono font-black text-indigo-700 shadow-sm" placeholder="https://..." />
+                            <label className="label-high-contrast">כותרת ראשית (Title)</label>
+                            <input type="text" value={cardData.title} onChange={(e) => setCardData({...cardData, title: e.target.value})} className="block w-full rounded-xl border-2 border-slate-300 bg-white h-14 px-5 font-bold text-slate-900" />
                          </div>
                          <div>
-                            <label className="label-high-contrast">כפתורי פעולה (טקסט|קישור)</label>
-                            <textarea value={cardData.actions} onChange={(e) => setCardData({...cardData, actions: e.target.value})} className="block w-full rounded-[2rem] border-4 border-slate-100 bg-white h-36 p-6 text-[12px] font-mono font-black text-rose-700 shadow-sm" placeholder="כותרת|URL" />
+                            <label className="label-high-contrast">תת-כותרת (Subtitle)</label>
+                            <input type="text" value={cardData.subtitle} onChange={(e) => setCardData({...cardData, subtitle: e.target.value})} className="block w-full rounded-xl border-2 border-slate-300 bg-white h-14 px-5 font-bold text-slate-900" />
+                         </div>
+                      </div>
+                      <div className="bg-slate-50 p-8 rounded-2xl border-2 border-slate-100 space-y-6">
+                         <div>
+                            <label className="label-high-contrast">גוף ההודעה המרכזי</label>
+                            <textarea value={cardData.cardText} onChange={(e) => setCardData({...cardData, cardText: e.target.value})} className="block w-full rounded-xl border-2 border-slate-300 bg-white h-32 p-6 font-bold text-slate-800" />
+                         </div>
+                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                               <label className="label-high-contrast">קישורי תמונות (אחת לשורה)</label>
+                               <textarea value={cardData.images} onChange={(e) => setCardData({...cardData, images: e.target.value})} className="block w-full rounded-xl border-2 border-slate-300 bg-white h-24 p-4 text-xs font-mono font-bold text-indigo-600" />
+                            </div>
+                            <div>
+                               <label className="label-high-contrast">כפתורי פעולה (טקסט|קישור)</label>
+                               <textarea value={cardData.actions} onChange={(e) => setCardData({...cardData, actions: e.target.value})} className="block w-full rounded-xl border-2 border-slate-300 bg-white h-24 p-4 text-xs font-mono font-bold text-rose-600" />
+                            </div>
                          </div>
                       </div>
                    </div>
-                </div>
-            )}
+               )}
+            </div>
 
-            <div className="pt-12">
-               <div className="flex items-center gap-6 mb-12">
-                  <div className="h-1 bg-slate-950 flex-1" />
-                  <span className="text-[14px] font-black text-slate-950 uppercase tracking-[0.6em] bg-white px-8 py-3 rounded-full border-2 border-slate-950 shadow-xl">תצוגה מקדימה חיה</span>
-                  <div className="h-1 bg-slate-950 flex-1" />
+            <div className="pt-10">
+               <div className="flex items-center gap-4 mb-8">
+                  <div className="h-1 bg-slate-900 flex-1" />
+                  <span className="text-sm font-black text-slate-900 uppercase tracking-widest bg-white border-2 border-slate-950 px-6 py-2 rounded-full shadow-lg">תצוגה מקדימה</span>
+                  <div className="h-1 bg-slate-900 flex-1" />
                </div>
-               <div className="bg-slate-200 rounded-[5rem] border-8 border-dashed border-white p-12 flex items-center justify-center min-h-[450px] shadow-inner relative overflow-hidden">
+               <div className="bg-slate-100 rounded-[3rem] border-4 border-dashed border-white p-10 flex items-center justify-center min-h-[400px] shadow-inner">
                   {payload ? (
-                    <div className="w-full max-w-2xl animate-in zoom-in-95 duration-500 relative z-10">
+                    <div className="w-full max-w-xl animate-in zoom-in-95 duration-300">
                        {mode === 'text' ? (
-                          <div className="bg-white p-12 rounded-[4rem] shadow-[0_40px_100px_rgba(0,0,0,0.2)] border-4 border-white whitespace-pre-wrap text-lg leading-relaxed text-slate-950 font-black">{plainText || 'ההודעה תופיע כאן...'}</div>
+                          <div className="bg-white p-10 rounded-3xl shadow-xl border-2 border-white whitespace-pre-wrap text-lg font-bold text-slate-900">{plainText || 'ההודעה תופיע כאן...'}</div>
                        ) : (
-                          <div className="bg-white rounded-[4rem] shadow-[0_40px_100px_rgba(0,0,0,0.2)] border-4 border-white overflow-hidden group/card hover:scale-[1.02] transition-transform duration-700">
+                          <div className="bg-white rounded-3xl shadow-2xl border-2 border-slate-100 overflow-hidden">
                              {(cardData.title || cardData.subtitle) && (
-                                <div className="p-10 border-b-4 border-slate-50 bg-slate-50">
-                                   <h3 className="font-black text-3xl text-slate-950 tracking-tight leading-tight font-rubik">{cardData.title}</h3>
-                                   <p className="text-[15px] text-indigo-700 font-black uppercase tracking-widest mt-3">{cardData.subtitle}</p>
+                                <div className="p-8 bg-slate-50 border-b-2 border-slate-100">
+                                   <h3 className="font-black text-2xl text-slate-950 leading-tight">{cardData.title}</h3>
+                                   <p className="text-sm text-indigo-600 font-bold uppercase mt-2">{cardData.subtitle}</p>
                                 </div>
                              )}
-                             {cardData.headerImage && <img src={githubBlobToRaw(cardData.headerImage)} className="w-full object-cover max-h-72 group-hover/card:scale-110 transition-transform duration-[2000ms]" />}
-                             <div className="p-12 space-y-10">
-                                {cardData.cardText && <p className="text-lg text-slate-950 leading-relaxed whitespace-pre-wrap font-black">{cardData.cardText}</p>}
+                             {cardData.headerImage && <img src={githubBlobToRaw(cardData.headerImage)} className="w-full object-cover max-h-64" />}
+                             <div className="p-8 space-y-8">
+                                {cardData.cardText && <p className="text-lg text-slate-900 leading-relaxed font-bold">{cardData.cardText}</p>}
                                 {cardData.images.split('\n').filter(Boolean).map((img, i) => (
-                                   <img key={i} src={githubBlobToRaw(img)} className="w-full rounded-[3rem] shadow-2xl border-4 border-white" />
+                                   <img key={i} src={githubBlobToRaw(img)} className="w-full rounded-2xl shadow-md border-2 border-white" />
                                 ))}
-                                <div className="flex flex-wrap gap-5 pt-6">
+                                <div className="flex flex-wrap gap-4 pt-4">
                                    {cardData.actions.split('\n').map(a => a.split('|')).filter(p => p.length === 2).map(([t], i) => (
-                                      <div key={i} className="px-12 py-4 bg-slate-950 text-white text-[14px] font-black rounded-3xl shadow-2xl uppercase tracking-[0.2em]">{t.trim()}</div>
+                                      <div key={i} className="px-10 py-3 bg-slate-950 text-white text-xs font-black rounded-xl shadow-lg uppercase">{t.trim()}</div>
                                    ))}
                                 </div>
                              </div>
@@ -269,27 +232,23 @@ export default function GoogleChatSender({ saveHistory, savedWebhooks, onAddWebh
                        )}
                     </div>
                   ) : (
-                    <div className="text-slate-500 text-xl font-black uppercase tracking-[0.5em] animate-pulse italic">ממתין לתוכן...</div>
+                    <div className="text-slate-400 text-lg font-black uppercase italic animate-pulse tracking-widest">ממתין להזנת תוכן...</div>
                   )}
                </div>
             </div>
         </div>
 
-        <footer className="pt-10 border-t-4 border-slate-100 mt-auto flex flex-col sm:flex-row justify-between items-center gap-12 bg-white">
-            <div className="flex items-center gap-6 bg-slate-950 border-4 border-white rounded-3xl p-5 px-10 text-[14px] font-black uppercase tracking-widest text-white flex-1 shadow-2xl">
-               <div className={`w-4 h-4 rounded-full ${isSending ? 'bg-amber-500 animate-ping' : 'bg-green-500 shadow-[0_0_20px_#22c55e]'}`} />
-               <span className="mt-0.5 tracking-[0.2em]">{log}</span>
+        <footer className="pt-8 border-t-4 border-slate-100 mt-auto flex flex-col sm:flex-row justify-between items-center gap-8">
+            <div className="flex items-center gap-4 bg-slate-900 rounded-2xl p-4 px-8 text-white flex-1 shadow-lg w-full">
+               <div className={`w-3 h-3 rounded-full ${isSending ? 'bg-yellow-400 animate-ping' : 'bg-green-400'}`} />
+               <span className="text-xs font-black tracking-widest uppercase">{log}</span>
             </div>
             <button 
                 onClick={handleSend} 
                 disabled={!payload || isSending}
-                className="w-full sm:w-auto h-24 px-28 bg-slate-950 text-white rounded-[3rem] font-black text-4xl shadow-2xl hover:scale-[1.04] hover:-translate-y-2 active:scale-95 transition-all duration-300 flex items-center justify-center gap-6 disabled:bg-slate-300 disabled:shadow-none border-4 border-white/20 uppercase tracking-tighter"
+                className="w-full sm:w-auto h-20 px-24 bg-indigo-600 text-white rounded-2xl font-black text-3xl shadow-2xl hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-5 disabled:bg-slate-300 border-b-8 border-indigo-900"
             >
-                {isSending ? (
-                    <div className="animate-spin h-12 w-12 border-4 border-white/30 border-t-white rounded-full" />
-                ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                )}
+                {isSending ? <div className="animate-spin h-10 w-10 border-4 border-white/30 border-t-white rounded-full" /> : <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
                 <span>שדר עכשיו</span>
             </button>
         </footer>

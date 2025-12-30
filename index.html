@@ -7,11 +7,9 @@
     <title>ChatHub | משגר הודעות חכם</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js" async defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/shey3132/-22/main/%D7%A4%D7%A8%D7%95%D7%A4%D7%99%D7%9C%20%D7%93%D7%99%D7%92%D7%99%D7%98%D7%9C%D7%99%20%D7%A2%D7%9D%20%D7%A8%D7%A9%D7%AA%20%D7%A4%D7%A2%D7%95%D7%9C%D7%94.png">
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;700;800&family=Rubik:wght@400;700;900&display=swap" rel="stylesheet">
 <script type="importmap">
 {
   "imports": {
@@ -28,67 +26,67 @@
 </script>
 <style>
   body {
-    font-family: 'Rubik', 'Assistant', sans-serif;
-    scroll-behavior: smooth;
-    background: #fdf2f8; 
+    font-family: 'Rubik', sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
   }
-  ::-webkit-scrollbar { width: 8px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
   
   .mesh-bg {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: -1;
     background: 
-      radial-gradient(at 0% 0%, rgba(249, 168, 212, 0.7) 0, transparent 50%),
-      radial-gradient(at 100% 0%, rgba(199, 210, 254, 0.7) 0, transparent 50%),
-      radial-gradient(at 50% 100%, rgba(254, 215, 170, 0.7) 0, transparent 50%),
-      radial-gradient(at 0% 100%, rgba(165, 243, 252, 0.7) 0, transparent 50%);
+      radial-gradient(at 0% 0%, #e0e7ff 0, transparent 40%),
+      radial-gradient(at 100% 100%, #fae8ff 0, transparent 40%),
+      radial-gradient(at 100% 0%, #fef3c7 0, transparent 40%);
   }
 
-  /* פונט מערכת אולטימטיבי - כולל אימוג'ים וסימנים מיוחדים */
+  /* פתרון הריבועים בשם - פונטים מתמטיים וסמלים */
   .username-fix {
-    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
-    font-weight: 900 !important;
+    font-family: "Cambria Math", "Segoe UI Symbol", "Apple Color Emoji", "Noto Sans Math", "STIX Two Math", serif !important;
+    font-weight: 800 !important;
     color: #000000 !important;
-    letter-spacing: -0.01em;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* כיתובים שחורים ובולטים במיוחד */
+  /* פתרון כיתובים נעלמים - שחור מוחלט עם הילה לבנה */
   .label-high-contrast {
     color: #000000 !important;
-    font-weight: 950 !important;
+    font-weight: 900 !important;
+    font-size: 14px !important;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 13px !important;
-    display: block;
-    margin-bottom: 8px;
-    opacity: 1 !important;
+    letter-spacing: 0.02em;
+    text-shadow: 2px 2px 0px #ffffff, -1px -1px 0px #ffffff, 1px -1px 0px #ffffff, -1px 1px 0px #ffffff;
+    display: inline-block;
+    margin-bottom: 4px;
   }
 
   .animated-gradient-text {
-    background: linear-gradient(to right, #4338ca, #db2777, #d97706, #4338ca);
+    background: linear-gradient(to right, #1e1b4b, #701a75, #92400e, #1e1b4b);
     background-size: 200% auto;
     color: transparent;
     -webkit-background-clip: text;
     background-clip: text;
-    animation: shine 5s linear infinite;
+    animation: shine 8s linear infinite;
   }
 
   @keyframes shine {
     to { background-position: 200% center; }
   }
 
-  .glass-solid {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
-    border: 2px solid #ffffff;
-    box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.2);
+  /* סליידרים ושדות קלט עם מסגרת כהה */
+  input, select, textarea {
+    border: 2px solid #e2e8f0 !important;
+    transition: all 0.2s ease;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1) !important;
   }
 </style>
 </head>
-<body class="text-slate-900 antialiased overflow-hidden">
+<body class="antialiased overflow-hidden">
     <div class="mesh-bg"></div>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
