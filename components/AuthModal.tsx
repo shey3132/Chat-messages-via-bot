@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 
 const GOOGLE_CLIENT_ID = "456093644604-43qt6d36nk36fassgbf1mm6otpav8mti.apps.googleusercontent.com"; 
+const CUSTOM_LOGO_URL = "https://raw.githubusercontent.com/shey3132/-22/refs/heads/main/shai-logo-animation%20(1).gif";
 
 declare const google: any;
 
@@ -27,8 +28,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
                 const base64Url = token.split('.')[1];
                 const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
                 
-                // CRITICAL FIX: Unicode-safe decoding for Google Payload
-                // This ensures Hebrew and special mathematical symbols are parsed correctly.
                 const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
                     return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
                 }).join(''));
@@ -58,11 +57,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl">
       <div className="bg-white w-full max-w-md rounded-[3rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] p-12 border border-slate-100 text-center animate-ready">
         
-        <div className="w-16 h-16 header-gradient rounded-3xl mx-auto mb-6 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
-            <svg viewBox="0 0 100 100" className="w-8 h-8 fill-none stroke-white" strokeWidth="10" strokeLinecap="round">
-                <rect x="5" y="5" width="90" height="90" rx="20" opacity="0.3"/>
-                <path d="M25 35h50M25 50h50M25 65h30"/>
-            </svg>
+        {/* Animated Custom Logo */}
+        <div className="w-20 h-20 bg-slate-50 rounded-[1.5rem] mx-auto mb-6 flex items-center justify-center overflow-hidden border border-slate-100 shadow-inner">
+            <img src={CUSTOM_LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
         </div>
         
         <h2 className="text-3xl font-black text-slate-900 mb-1 tracking-tighter uppercase">ChatHub</h2>
@@ -113,7 +110,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         )}
 
         <div className="mt-12 pt-8 border-t border-slate-50">
-            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v54.0 • UTF-8 UNICODE FIXED</p>
+            <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em]">v55.0 • Animated Branding</p>
         </div>
       </div>
     </div>

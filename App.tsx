@@ -10,7 +10,8 @@ import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
 
-const STORAGE_PREFIX = 'chathub_v54_';
+const STORAGE_PREFIX = 'chathub_v55_';
+const CUSTOM_LOGO_URL = "https://raw.githubusercontent.com/shey3132/-22/refs/heads/main/shai-logo-animation%20(1).gif";
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -60,17 +61,17 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col p-3 lg:p-5 gap-4 max-w-[1600px] mx-auto overflow-hidden">
       
-      {/* Header - Vibrant Color with Clean Original Icon */}
+      {/* Header - Custom Animated Logo */}
       <header className="flex flex-col sm:flex-row justify-between items-center header-gradient p-4 px-8 rounded-[2rem] shadow-2xl shadow-indigo-500/20 text-white">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30">
-                <svg viewBox="0 0 100 100" className="w-6 h-6 fill-none stroke-white" strokeWidth="10" strokeLinecap="round">
-                    <rect x="5" y="5" width="90" height="90" rx="20" opacity="0.3"/>
-                    <path d="M25 35h50M25 50h50M25 65h30"/>
-                </svg>
+             <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30 overflow-hidden">
+                <img src={CUSTOM_LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
              </div>
-             <h1 className="text-2xl font-black tracking-tighter uppercase">ChatHub</h1>
+             <div className="flex flex-col">
+                <h1 className="text-2xl font-black tracking-tighter uppercase leading-none">ChatHub</h1>
+                <span className="text-[8px] font-bold opacity-70 tracking-widest uppercase mt-1">Workspace v55</span>
+             </div>
           </div>
 
           <nav className="flex items-center gap-1 bg-black/10 p-1 rounded-2xl border border-white/10">
@@ -87,7 +88,6 @@ export default function App() {
            {user && (
              <div className="flex items-center gap-3 pl-5 pr-1.5 py-1.5 rounded-full bg-white shadow-xl">
                 <div className="flex flex-col items-end leading-none">
-                  {/* dir="ltr" + username-display class with Unicode-safe fonts */}
                   <span className="text-sm font-bold text-slate-900 username-display" dir="ltr">{user.username}</span>
                   <div className="flex gap-2 items-center mt-1">
                     {user.isGuest && <span className="text-[7px] font-black bg-indigo-600 text-white px-1.5 rounded-full tracking-tighter">GUEST</span>}
