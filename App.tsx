@@ -10,7 +10,7 @@ import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
 
-const STORAGE_PREFIX = 'chathub_v51_';
+const STORAGE_PREFIX = 'chathub_v52_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -60,15 +60,12 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col p-3 lg:p-5 gap-4 max-w-[1600px] mx-auto overflow-hidden">
       
-      {/* Header - Vibrant Color with Original Icon */}
+      {/* Header - Vibrant Color with Lightning Bolt */}
       <header className="flex flex-col sm:flex-row justify-between items-center header-gradient p-4 px-8 rounded-[2rem] shadow-2xl shadow-indigo-500/20 text-white">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
              <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30">
-                <svg viewBox="0 0 100 100" className="w-6 h-6 fill-white">
-                    <rect width="100" height="100" rx="20" fill="none" stroke="white" strokeWidth="8"/>
-                    <path d="M25 35h50M25 50h50M25 65h30" stroke="white" strokeWidth="8" strokeLinecap="round"/>
-                </svg>
+                <span className="text-xl">⚡</span>
              </div>
              <h1 className="text-2xl font-black tracking-tighter uppercase">ChatHub</h1>
           </div>
@@ -87,7 +84,7 @@ export default function App() {
            {user && (
              <div className="flex items-center gap-3 pl-5 pr-1.5 py-1.5 rounded-full bg-white shadow-xl">
                 <div className="flex flex-col items-end leading-none">
-                  {/* dir="ltr" + specialized font class for math characters */}
+                  {/* dir="ltr" is essential for fancy math characters to not flip in RTL */}
                   <span className="text-sm text-slate-900 username-display" dir="ltr">{user.username}</span>
                   <div className="flex gap-2 items-center mt-1">
                     {user.isGuest && <span className="text-[7px] font-black bg-indigo-600 text-white px-1.5 rounded-full tracking-tighter">GUEST</span>}
@@ -106,23 +103,23 @@ export default function App() {
         <main className="flex-1 flex flex-col min-h-0">
           {activeApp === 'chatSender' ? (
             <GoogleChatSender 
-              saveHistory={(p, url) => {
+              saveHistory={(p: any, url: string) => {
                   const webhook = savedWebhooks.find(w => w.url === url);
                   setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
               }} 
               savedWebhooks={savedWebhooks}
-              onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
-              onDeleteWebhook={(id) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
+              onAddWebhook={(w: SavedWebhook) => setSavedWebhooks(prev => [...prev, w])}
+              onDeleteWebhook={(id: string) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
             />
           ) : (
             <OtherApp 
-              saveHistory={(p, url) => {
+              saveHistory={(p: any, url: string) => {
                   const webhook = savedWebhooks.find(w => w.url === url);
                   setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
               }}
               savedWebhooks={savedWebhooks}
-              onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
-              onDeleteWebhook={(id) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
+              onAddWebhook={(w: SavedWebhook) => setSavedWebhooks(prev => [...prev, w])}
+              onDeleteWebhook={(id: string) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
             />
           )}
         </main>

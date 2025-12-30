@@ -4,15 +4,15 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Favicon: Returning to the clean, professional icon you liked -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%234f46e5%22/><path d=%22M25 35h50M25 50h50M25 65h30%22 stroke=%22white%22 stroke-width=%228%22 stroke-linecap=%22round%22/></svg>">
-    <title>ChatHub | Premium Messaging</title>
+    <!-- האייקון שאהבת - הברק המקורי -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+    <title>ChatHub | Power Messaging</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Adding Noto Sans Symbols 2 - This is the key for mathematical alphanumeric characters -->
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Noto+Sans+Symbols+2&family=STIX+Two+Math&display=swap" rel="stylesheet">
+    <!-- גופנים שתומכים בתווים המתמטיים המיוחדים של השם שלך -->
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Noto+Sans+Math&family=STIX+Two+Math&display=swap" rel="stylesheet">
 <script type="importmap">
 {
   "imports": {
@@ -44,15 +44,13 @@
       radial-gradient(circle at 100% 100%, rgba(217, 70, 239, 0.15) 0%, transparent 50%);
   }
 
-  /* THE FINAL FIX FOR THE USERNAME BOXES */
+  /* תיקון השם - שימוש בגופנים שתומכים בתווים המתמטיים הקישוטיים */
   .username-display {
-    /* Noto Sans Symbols 2 has the best coverage for Math Alphanumeric Symbols */
-    font-family: "Noto Sans Symbols 2", "STIX Two Math", "Segoe UI Symbol", "Apple Color Emoji", sans-serif !important;
-    font-weight: normal !important; /* Bold sometimes breaks thin Unicode glyphs */
+    font-family: "STIX Two Math", "Noto Sans Math", "Cambria Math", "Segoe UI Symbol", "Apple Color Emoji", sans-serif !important;
+    font-weight: normal !important;
     text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
     display: inline-block;
-    line-height: 1;
+    letter-spacing: 0.02em;
   }
 
   .header-gradient {
