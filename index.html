@@ -4,12 +4,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ChatHub | משגר הודעות חכם</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+    <title>ChatHub | Premium Messaging</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;700;800&family=Rubik:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&family=Rubik:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <script type="importmap">
 {
   "imports": {
@@ -26,9 +27,10 @@
 </script>
 <style>
   body {
-    font-family: 'Rubik', sans-serif;
-    background: #f8fafc;
-    color: #0f172a;
+    font-family: 'Assistant', sans-serif;
+    background-color: #fcfcfd;
+    color: #1e293b;
+    margin: 0;
   }
   
   .mesh-bg {
@@ -36,54 +38,46 @@
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: -1;
     background: 
-      radial-gradient(at 0% 0%, #e0e7ff 0, transparent 40%),
-      radial-gradient(at 100% 100%, #fae8ff 0, transparent 40%),
-      radial-gradient(at 100% 0%, #fef3c7 0, transparent 40%);
+      radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+      radial-gradient(circle at 90% 90%, rgba(244, 63, 94, 0.05) 0%, transparent 40%);
   }
 
-  /* פתרון הריבועים בשם - פונטים מתמטיים וסמלים */
-  .username-fix {
-    font-family: "Cambria Math", "Segoe UI Symbol", "Apple Color Emoji", "Noto Sans Math", "STIX Two Math", serif !important;
-    font-weight: 800 !important;
-    color: #000000 !important;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
+  /* פתרון פונטים לשם המשתמש - תמיכה ב-Unicode Plane 1 (תווים מתמטיים) */
+  .username-display {
+    font-family: "Segoe UI Historic", "Segoe UI Symbol", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Symbola", "Quivira", sans-serif !important;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.01em;
   }
 
-  /* פתרון כיתובים נעלמים - שחור מוחלט עם הילה לבנה */
-  .label-high-contrast {
-    color: #000000 !important;
-    font-weight: 900 !important;
-    font-size: 14px !important;
+  /* עיצוב כותרות שדות - נקי ומקצועי */
+  .field-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
     text-transform: uppercase;
-    letter-spacing: 0.02em;
-    text-shadow: 2px 2px 0px #ffffff, -1px -1px 0px #ffffff, 1px -1px 0px #ffffff, -1px 1px 0px #ffffff;
-    display: inline-block;
-    margin-bottom: 4px;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.35rem;
+    display: block;
   }
 
-  .animated-gradient-text {
-    background: linear-gradient(to right, #1e1b4b, #701a75, #92400e, #1e1b4b);
-    background-size: 200% auto;
-    color: transparent;
-    -webkit-background-clip: text;
-    background-clip: text;
-    animation: shine 8s linear infinite;
+  .glass-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   }
 
-  @keyframes shine {
-    to { background-position: 200% center; }
-  }
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
 
-  /* סליידרים ושדות קלט עם מסגרת כהה */
-  input, select, textarea {
-    border: 2px solid #e2e8f0 !important;
-    transition: all 0.2s ease;
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-  input:focus, select:focus, textarea:focus {
-    border-color: #4f46e5 !important;
-    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1) !important;
-  }
+  .animate-slide { animation: slideIn 0.3s ease-out forwards; }
 </style>
 </head>
 <body class="antialiased overflow-hidden">

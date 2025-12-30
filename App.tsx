@@ -10,7 +10,7 @@ import AuthModal from './components/AuthModal';
 
 type ActiveApp = 'chatSender' | 'otherApp';
 
-const STORAGE_PREFIX = 'chathub_v45_';
+const STORAGE_PREFIX = 'chathub_v46_';
 
 export default function App() {
   const [activeApp, setActiveApp] = useState<ActiveApp>('chatSender');
@@ -51,98 +51,78 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (confirm('בטוח שברצונך להתנתק?')) {
+    if (confirm('להתנתק מהחשבון?')) {
         localStorage.clear();
         window.location.reload();
     }
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden text-slate-900" dir="rtl">
+    <div className="h-screen flex flex-col p-4 md:p-6 gap-6 max-w-[1600px] mx-auto overflow-hidden">
       
-      <div className="relative z-10 max-w-[1800px] mx-auto p-4 sm:p-6 lg:p-8 h-screen flex flex-col gap-6">
-        
-        {/* Header - High Contrast Design */}
-        <header className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/95 border-b-4 border-indigo-600 p-6 px-10 rounded-3xl shadow-xl">
-          <div className="flex items-center gap-10">
-            <div className="flex items-center gap-5">
-               <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-               </div>
-               <div className="flex flex-col">
-                  <span className="text-4xl font-black italic tracking-tighter animated-gradient-text leading-none">ChatHub</span>
-                  <span className="text-[12px] font-bold text-slate-500 uppercase tracking-widest mt-1">Version 45 • Ultra Visible</span>
-               </div>
-            </div>
-
-            <nav className="hidden md:flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl">
-              <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>
-                   <span className="font-black text-sm">משגר הודעות</span>
-              </TabButton>
-              <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>
-                   <span className="font-black text-sm">מחולל סקרים</span>
-              </TabButton>
-            </nav>
+      {/* Header - Sleek & Compact */}
+      <header className="flex flex-col sm:flex-row justify-between items-center bg-white border border-slate-200 p-4 px-6 rounded-2xl shadow-sm">
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+             </div>
+             <h1 className="text-xl font-black tracking-tight text-slate-900">ChatHub</h1>
           </div>
 
-          <div className="flex items-center gap-6">
-             {user && (
-               <div className="flex items-center gap-4 p-2 pr-2 pl-6 rounded-2xl bg-slate-50 border-2 border-slate-200 shadow-sm">
-                  <div className="w-14 h-14 rounded-full border-4 border-white shadow-md overflow-hidden order-2">
-                     {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">{user.username[0]}</div>}
-                  </div>
-                  <div className="flex flex-col items-end order-1">
-                    {/* Username fixed with math fonts and pure black */}
-                    <span className="text-2xl font-black username-fix leading-none">{user.username}</span>
-                    <button onClick={handleLogout} className="text-sm font-bold text-red-600 hover:underline mt-1">התנתקות</button>
-                  </div>
-               </div>
-             )}
-          </div>
-        </header>
-
-        <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
-          <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {activeApp === 'chatSender' ? (
-              <GoogleChatSender 
-                saveHistory={(p, url) => {
-                    const webhook = savedWebhooks.find(w => w.url === url);
-                    setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
-                }} 
-                savedWebhooks={savedWebhooks}
-                onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
-                onDeleteWebhook={(id) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
-              />
-            ) : (
-              <OtherApp 
-                saveHistory={(p, url) => {
-                    const webhook = savedWebhooks.find(w => w.url === url);
-                    setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
-                }}
-                savedWebhooks={savedWebhooks}
-                onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
-                onDeleteWebhook={(id) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
-              />
-            )}
-          </main>
-
-          <aside className="w-full lg:w-[420px] flex-shrink-0 flex flex-col min-h-0">
-            <HistorySidebar 
-              history={history} 
-              syncStatus="success"
-              username={user?.username}
-              avatar={user?.avatar}
-              savedWebhooks={savedWebhooks}
-              cloudId={null}
-              onLogout={handleLogout}
-              onImportFile={() => {}} 
-              onExportFile={() => {}} 
-              onSetCloudId={() => {}}
-              onResetCloud={() => {}}
-              onManualSync={() => {}}
-            />
-          </aside>
+          <nav className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+            <TabButton isActive={activeApp === 'chatSender'} onClick={() => setActiveApp('chatSender')}>
+                 משגר הודעות
+            </TabButton>
+            <TabButton isActive={activeApp === 'otherApp'} onClick={() => setActiveApp('otherApp')}>
+                 מחולל סקרים
+            </TabButton>
+          </nav>
         </div>
+
+        <div className="flex items-center gap-4 mt-4 sm:mt-0">
+           {user && (
+             <div className="flex items-center gap-3 pl-4 pr-1 py-1 rounded-full bg-slate-50 border border-slate-200 group hover:bg-white transition-all cursor-default">
+                <div className="flex flex-col items-end leading-none">
+                  <span className="text-sm username-display">{user.username}</span>
+                  <button onClick={handleLogout} className="text-[10px] font-bold text-red-500 hover:text-red-600 mt-1 uppercase">התנתק</button>
+                </div>
+                <div className="w-10 h-10 rounded-full border border-white shadow-sm overflow-hidden order-last">
+                   {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" alt="User" /> : <div className="w-full h-full bg-slate-200" />}
+                </div>
+             </div>
+           )}
+        </div>
+      </header>
+
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+        <main className="flex-1 flex flex-col min-h-0">
+          {activeApp === 'chatSender' ? (
+            <GoogleChatSender 
+              saveHistory={(p, url) => {
+                  const webhook = savedWebhooks.find(w => w.url === url);
+                  setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
+              }} 
+              savedWebhooks={savedWebhooks}
+              onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
+              onDeleteWebhook={(id) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
+            />
+          ) : (
+            <OtherApp 
+              saveHistory={(p, url) => {
+                  const webhook = savedWebhooks.find(w => w.url === url);
+                  setHistory(prev => [{ timestamp: Date.now(), payload: p, webhookUrl: url, webhookName: webhook?.name }, ...prev]);
+              }}
+              savedWebhooks={savedWebhooks}
+              onAddWebhook={(w) => setSavedWebhooks(prev => [...prev, w])}
+              onDeleteWebhook={(id) => setSavedWebhooks(prev => prev.filter(x => x.id !== id))}
+            />
+          )}
+        </main>
+
+        <aside className="w-full lg:w-80 flex-shrink-0 min-h-0 flex flex-col">
+          <HistorySidebar history={history} />
+        </aside>
       </div>
 
       {isAuthOpen && <AuthModal onLogin={handleLogin} />}
