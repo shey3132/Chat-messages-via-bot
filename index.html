@@ -10,7 +10,7 @@
     <script src="https://apis.google.com/js/api.js" async defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;700;900&family=Outfit:wght@400;600;900&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/shey3132/-22/main/%D7%A4%D7%A8%D7%95%D7%A4%D7%99%D7%9C%20%D7%93%D7%99%D7%92%D7%99%D7%98%D7%9C%D7%99%20%D7%A2%D7%9D%20%D7%A8%D7%A9%D7%AA%20%D7%A4%D7%A2%D7%95%D7%9C%D7%94.png">
 <script type="importmap">
 {
@@ -28,55 +28,59 @@
 </script>
 <style>
   body {
-    font-family: 'Rubik', 'Assistant', system-ui, -apple-system, sans-serif;
+    font-family: 'Rubik', 'Assistant', sans-serif;
     scroll-behavior: smooth;
-    background-color: #f8fafc;
+    background: #fdf2f8; /* Warm pinkish base */
   }
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.2); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.4); }
+  ::-webkit-scrollbar-thumb { background: rgba(236, 72, 153, 0.2); border-radius: 10px; }
   
-  .glass-card {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(25px) saturate(160%);
+  .mesh-bg {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: -1;
+    background: 
+      radial-gradient(at 0% 0%, rgba(249, 168, 212, 0.4) 0, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(199, 210, 254, 0.4) 0, transparent 50%),
+      radial-gradient(at 50% 100%, rgba(254, 215, 170, 0.4) 0, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(165, 243, 252, 0.4) 0, transparent 50%);
+  }
+
+  .glass-vibrant {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 40px -10px rgba(0,0,0,0.05);
   }
 
-  @keyframes float {
-    0% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(2%, 4%) scale(1.1); }
-    66% { transform: translate(-3%, 2%) scale(0.95); }
-    100% { transform: translate(0, 0) scale(1); }
-  }
-
-  .animate-float {
-    animation: float 15s ease-in-out infinite;
+  .username-fix {
+    /* כפייה של פונט סיסטם בסיסי ביותר שתומך בתווים מיוחדים */
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
   }
 
   .animated-gradient-text {
-    background: linear-gradient(to right, #6366f1, #06b6d4, #f43f5e, #6366f1);
+    background: linear-gradient(to right, #6366f1, #ec4899, #f59e0b, #6366f1);
     background-size: 200% auto;
     color: transparent;
     -webkit-background-clip: text;
     background-clip: text;
-    animation: shine 5s linear infinite;
+    animation: shine 6s linear infinite;
   }
 
   @keyframes shine {
     to { background-position: 200% center; }
   }
 
-  .card-glow-indigo { box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.15); }
-  .card-glow-teal { box-shadow: 0 0 40px -10px rgba(20, 184, 166, 0.15); }
-  
-  /* פונט בטוח לשם המשתמש כדי למנוע ריבועים */
-  .username-safe {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  @keyframes subtle-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
   }
+  .float-ui { animation: subtle-float 4s ease-in-out infinite; }
 </style>
 </head>
 <body class="text-slate-900 antialiased overflow-hidden">
+    <div class="mesh-bg"></div>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
 </body>
